@@ -261,8 +261,42 @@ fun BiteSiteCaptureScreen(
 // ── 5. SYMPTOM INPUT ─────────────────────────────────────────────────────────
 @Composable
 fun SymptomInputScreen(onSubmit: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val symptoms = listOf("Swelling", "Bleeding", "Ptosis\n(drooping eyelid)", "Breathing\ndifficulty", "Pain", "Nausea")
     val selected = remember { mutableStateListOf<String>() }
+    var transcript by remember { mutableStateOf("") }
+    var isListening by remember { mutableStateOf(false) }
+    var statusMsg by remember { mutableStateOf("Hold button to speak symptoms") }
+
+    val voiceManager = remember { com.sarpamitra.voice.VoiceManager(context) }
+
+    val isHindi by remember {
+        val prefs = context.getSharedPreferences("sarpa_prefs", android.content.Context.MODE_PRIVATE)
+        mutableStateOf(prefs.getBoolean("is_hindi", true))
+    }
+
+    LaunchedEffect(isHindi) {
+        voiceManager.setLanguage(isHindi)
+    }
+
+    var hasMicPermission by remember {
+        mutableStateOf(
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.RECORD_AUDIO
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasMicPermission = granted
+        if (!granted) statusMsg = "Microphone permission denied"
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { voiceManager.destroy() }
+    }
 
     Column(
         modifier = Modifier
@@ -273,21 +307,84 @@ fun SymptomInputScreen(onSubmit: () -> Unit) {
     ) {
         Spacer(modifier = Modifier.height(32.dp))
         Text(text = "What symptoms?", color = WhiteColor, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (transcript.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = CardColor),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = "\"$transcript\"",
+                    color = GreenColor,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
         Button(
-            onClick = { },
+            onClick = {
+                if (!hasMicPermission) {
+                    permissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                    return@Button
+                }
+                if (!isListening) {
+                    isListening = true
+                    statusMsg = "🎤 Listening..."
+                    voiceManager.startListening(
+                        onResult = { text ->
+                            transcript = text
+                            isListening = false
+                            statusMsg = "Tap symptoms or submit"
+                        },
+                        onError = { error ->
+                            statusMsg = error
+                            isListening = false
+                        }
+                    )
+                } else {
+                    voiceManager.stopListening()
+                    isListening = false
+                    statusMsg = "Hold button to speak symptoms"
+                }
+            },
             modifier = Modifier.fillMaxWidth().height(80.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = RedColor),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (isListening) GreenColor else RedColor
+            ),
             shape = RoundedCornerShape(16.dp)
         ) {
-            Text(text = "🎤  HOLD TO SPEAK", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(
+                text = when {
+                    !hasMicPermission -> "🎤  TAP TO GRANT MIC"
+                    isListening -> "🎤 LISTENING... (tap to stop)"
+                    else -> "🎤  HOLD TO SPEAK"
+                },
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
-        Spacer(modifier = Modifier.height(24.dp))
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Language: ${if (isHindi) "Hindi 🇮🇳" else "English 🇬🇧"}  •  Change in Settings",
+            color = GrayColor,
+            fontSize = 11.sp
+        )
+        Text(text = statusMsg, color = GrayColor, fontSize = 12.sp)
+        Spacer(modifier = Modifier.height(16.dp))
         Text(text = "Or tap symptoms:", color = GrayColor, fontSize = 14.sp)
         Spacer(modifier = Modifier.height(12.dp))
+
         val rows = symptoms.chunked(2)
         rows.forEach { row ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 row.forEach { symptom ->
                     val isSelected = selected.contains(symptom)
                     Card(
@@ -303,26 +400,34 @@ fun SymptomInputScreen(onSubmit: () -> Unit) {
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(text = symptom, color = WhiteColor, fontSize = 13.sp, textAlign = TextAlign.Center)
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = symptom,
+                                color = WhiteColor,
+                                fontSize = 13.sp,
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
         }
+
         Spacer(modifier = Modifier.weight(1f))
         Button(
             onClick = onSubmit,
             modifier = Modifier.fillMaxWidth().height(64.dp),
             colors = ButtonDefaults.buttonColors(containerColor = RedColor),
-            enabled = selected.isNotEmpty()
+            enabled = selected.isNotEmpty() || transcript.isNotEmpty()
         ) {
             Text(text = "ANALYZE NOW", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
-
 // ── 6. PROCESSING ────────────────────────────────────────────────────────────
 @Composable
 fun ProcessingScreen(onComplete: () -> Unit) {
@@ -365,6 +470,18 @@ fun ResultsDashboardScreen(
     onStartMonitoring: () -> Unit,
     onBack: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val voiceManager = remember { com.sarpamitra.voice.VoiceManager(context) }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(1000)
+        voiceManager.speak("Critical severity. Neurotoxic envenomation suspected. Antivenom required. Go to District Hospital immediately.")
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { voiceManager.destroy() }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -379,46 +496,233 @@ fun ResultsDashboardScreen(
                 colors = CardDefaults.cardColors(containerColor = RedColor),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = "⚠️ CRITICAL", color = WhiteColor, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    Text(text = "Neurotoxic envenomation suspected", color = WhiteColor, fontSize = 14.sp)
-                    Text(text = "Confidence: 78%", color = WhiteColor.copy(alpha = 0.8f), fontSize = 12.sp)
-                }
-            }
-        }
-        item {
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = CardColor), shape = RoundedCornerShape(16.dp)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "💉 ASV Required", color = AmberColor, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text(text = "Polyvalent antivenom • 8-10 vials", color = WhiteColor, fontSize = 14.sp)
-                }
-            }
-        }
-        item {
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = CardColor), shape = RoundedCornerShape(16.dp)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "🏥 Nearest Facilities", color = WhiteColor, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = "⚠️ ASV stock NOT verified. Go to District Hospital if possible.", color = AmberColor, fontSize = 12.sp)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = "🏛️ District Hospital — HIGH probability • 12 km", color = GreenColor, fontSize = 14.sp)
-                    Text(text = "Distance approximate. Road conditions may vary.", color = GrayColor, fontSize = 11.sp)
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "⚠️ CRITICAL",
+                        color = WhiteColor,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "🏥 Sub-District Hospital — Medium-High • 4 km", color = AmberColor, fontSize = 14.sp)
+                    Text(
+                        text = "Neurotoxic envenomation suspected",
+                        color = WhiteColor,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "🏨 PHC — Variable ⚠️ May be out of stock • 4.2 km", color = GrayColor, fontSize = 14.sp)
+                    Text(
+                        text = "Confidence: 78%",
+                        color = WhiteColor.copy(alpha = 0.8f),
+                        fontSize = 12.sp
+                    )
                 }
             }
         }
+
         item {
-            Button(onClick = onGenerateReferral, modifier = Modifier.fillMaxWidth().height(64.dp), colors = ButtonDefaults.buttonColors(containerColor = RedColor)) {
-                Text(text = "📄  GENERATE REFERRAL", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = CardColor),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "💉 ASV Required",
+                        color = AmberColor,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Polyvalent antivenom • 8-10 vials",
+                        color = WhiteColor,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Administer at hospital only. Do NOT give at home.",
+                        color = AmberColor,
+                        fontSize = 12.sp
+                    )
+                }
             }
         }
+
         item {
-            Button(onClick = onStartMonitoring, modifier = Modifier.fillMaxWidth().height(64.dp), colors = ButtonDefaults.buttonColors(containerColor = AmberColor)) {
-                Text(text = "⏱️  START MONITORING", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = CardColor),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "🩹 First Aid",
+                        color = WhiteColor,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    listOf(
+                        "✅ Keep patient calm and still",
+                        "✅ Immobilize the bitten limb",
+                        "✅ Remove rings, watches near bite",
+                        "❌ Do NOT cut or suck the bite",
+                        "❌ Do NOT apply tourniquet",
+                        "❌ Do NOT apply ice or heat"
+                    ).forEach { instruction ->
+                        Text(
+                            text = instruction,
+                            color = if (instruction.startsWith("✅")) GreenColor else RedColor,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
+                    }
+                }
             }
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = CardColor),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "🏥 Nearest Facilities",
+                        color = WhiteColor,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF3A3A3C)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "⚠️ ASV stock NOT verified.",
+                                color = AmberColor,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Go to District Hospital if possible.",
+                                color = AmberColor,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // District Hospital
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = "🏛️ District Hospital", color = GreenColor, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "HIGH probability • Recommended", color = GreenColor, fontSize = 12.sp)
+                        }
+                        Text(text = "12 km", color = GrayColor, fontSize = 13.sp)
+                    }
+                    Text(
+                        text = "Distance approximate. Road conditions may vary.",
+                        color = GrayColor,
+                        fontSize = 10.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Divider(color = Color(0xFF3A3A3C))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Sub-District
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = "🏥 Sub-District Hospital", color = AmberColor, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "Medium-High probability", color = AmberColor, fontSize = 12.sp)
+                        }
+                        Text(text = "4 km", color = GrayColor, fontSize = 13.sp)
+                    }
+                    Text(
+                        text = "Distance approximate. Road conditions may vary.",
+                        color = GrayColor,
+                        fontSize = 10.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Divider(color = Color(0xFF3A3A3C))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // PHC
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = "🏨 PHC", color = GrayColor, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "Variable ⚠️ May be out of stock", color = GrayColor, fontSize = 12.sp)
+                        }
+                        Text(text = "4.2 km", color = GrayColor, fontSize = 13.sp)
+                    }
+                    Text(
+                        text = "Distance approximate. Road conditions may vary.",
+                        color = GrayColor,
+                        fontSize = 10.sp
+                    )
+                }
+            }
+        }
+
+        item {
+            Button(
+                onClick = onGenerateReferral,
+                modifier = Modifier.fillMaxWidth().height(64.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = RedColor),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(
+                    text = "📄  GENERATE REFERRAL",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        item {
+            Button(
+                onClick = onStartMonitoring,
+                modifier = Modifier.fillMaxWidth().height(64.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AmberColor),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(
+                    text = "⏱️  START MONITORING",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        item {
+            TextButton(
+                onClick = onBack,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(text = "Back", color = GrayColor)
+            }
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -593,8 +897,12 @@ fun HistoryScreen(
 // ── 11. SETTINGS ─────────────────────────────────────────────────────────────
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
-    var hindiSelected by remember { mutableStateOf(true) }
-    var modelStatus by remember { mutableStateOf("gemma-2b-it-cpu-int8.bin • 2.51 GB") }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = context.getSharedPreferences("sarpa_prefs", android.content.Context.MODE_PRIVATE)
+
+    var hindiSelected by remember {
+        mutableStateOf(prefs.getBoolean("is_hindi", true))
+    }
 
     Column(
         modifier = Modifier
@@ -605,28 +913,59 @@ fun SettingsScreen(onBack: () -> Unit) {
         Spacer(modifier = Modifier.height(16.dp))
         Text(text = "Settings", color = WhiteColor, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(24.dp))
-        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = CardColor), shape = RoundedCornerShape(16.dp)) {
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardColor),
+            shape = RoundedCornerShape(16.dp)
+        ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(text = "Language", color = WhiteColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
-                        onClick = { hindiSelected = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = if (hindiSelected) RedColor else GrayColor)
-                    ) { Text(text = "Hindi") }
+                        onClick = {
+                            hindiSelected = true
+                            prefs.edit().putBoolean("is_hindi", true).apply()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (hindiSelected) RedColor else GrayColor
+                        )
+                    ) { Text(text = "Hindi 🇮🇳") }
                     Button(
-                        onClick = { hindiSelected = false },
-                        colors = ButtonDefaults.buttonColors(containerColor = if (!hindiSelected) RedColor else GrayColor)
-                    ) { Text(text = "English") }
+                        onClick = {
+                            hindiSelected = false
+                            prefs.edit().putBoolean("is_hindi", false).apply()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (!hindiSelected) RedColor else GrayColor
+                        )
+                    ) { Text(text = "English 🇬🇧") }
                 }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Currently: ${if (hindiSelected) "Hindi" else "English"}",
+                    color = GreenColor,
+                    fontSize = 12.sp
+                )
             }
         }
+
         Spacer(modifier = Modifier.height(16.dp))
-        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = CardColor), shape = RoundedCornerShape(16.dp)) {
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardColor),
+            shape = RoundedCornerShape(16.dp)
+        ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(text = "Model Status", color = WhiteColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = modelStatus, color = GreenColor, fontSize = 13.sp)
+                Text(
+                    text = "gemma-2b-it-cpu-int8.bin • 2.51 GB",
+                    color = GreenColor,
+                    fontSize = 13.sp
+                )
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = {},
@@ -634,7 +973,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                 ) { Text(text = "Check for Update (USB)") }
             }
         }
+
         Spacer(modifier = Modifier.weight(1f))
-        TextButton(onClick = onBack) { Text(text = "Back", color = GrayColor) }
+        TextButton(onClick = onBack) {
+            Text(text = "Back", color = GrayColor)
+        }
     }
 }
