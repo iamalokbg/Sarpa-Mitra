@@ -526,12 +526,36 @@ fun HistoryScreen(
     onBack: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
-    val fakeCases = listOf(
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val fakeCases = remember { mutableStateListOf(
         Triple("SM-001", "CRITICAL", "2026-05-01"),
         Triple("SM-002", "MODERATE", "2026-04-28"),
         Triple("SM-003", "MILD", "2026-04-15")
-    )
+    ) }
 
+    LaunchedEffect(Unit) {
+        val db = com.sarpamitra.data.local.AppDatabase.getInstance(context)
+        db.patientSessionDao().insert(
+            com.sarpamitra.data.local.entity.PatientSession(
+                sessionId = "SM-TEST-001",
+                timestamp = System.currentTimeMillis(),
+                biteLocation = "Left ankle",
+                symptomsJson = """["swelling","ptosis"]""",
+                snakePhotoPath = null,
+                bitePhotoPath = null,
+                severity = "CRITICAL",
+                asvRequired = true,
+                asvType = "polyvalent",
+                estimatedVials = 10,
+                urgency = "IMMEDIATE",
+                confidence = 0.78f,
+                reasoning = "Neurotoxic signs present",
+                guardrailTriggered = "NEUROTOXIC_OVERRIDE",
+                referralGenerated = false,
+                syncStatus = "LOCAL"
+            )
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
