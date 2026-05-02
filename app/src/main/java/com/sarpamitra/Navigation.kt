@@ -5,6 +5,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.sarpamitra.ui.screens.*
+import com.sarpamitra.ui.screens.CameraXScreen
+import com.sarpamitra.ui.screens.RedColor
+import com.sarpamitra.ui.screens.AmberColor
 
 sealed class Screen(val route: String) {
     object EmergencyLaunch : Screen("emergency_launch")
@@ -40,18 +43,33 @@ fun SarpaMitraNavigation() {
                 onNoSnake = { navController.navigate(Screen.BiteSiteCapture.route) }
             )
         }
+
+        // --- Updated Camera Routes ---
         composable(Screen.SnakePhotoCapture.route) {
-            SnakePhotoCaptureScreen(
-                onPhotoCaptured = { navController.navigate(Screen.SymptomInput.route) },
+            CameraXScreen(
+                title = "📷 Photograph the Snake",
+                overlayColor = RedColor,
+                onPhotoCaptured = { path ->
+                    // Logic to store the path can be added here later
+                    navController.navigate(Screen.SymptomInput.route)
+                },
                 onSkip = { navController.navigate(Screen.SymptomInput.route) }
             )
         }
+
         composable(Screen.BiteSiteCapture.route) {
-            BiteSiteCaptureScreen(
-                onPhotoCaptured = { navController.navigate(Screen.SymptomInput.route) },
+            CameraXScreen(
+                title = "📷 Photograph the Bite Site",
+                overlayColor = AmberColor,
+                onPhotoCaptured = { path ->
+                    // Logic to store the path can be added here later
+                    navController.navigate(Screen.SymptomInput.route)
+                },
                 onSkip = { navController.navigate(Screen.SymptomInput.route) }
             )
         }
+        // -----------------------------
+
         composable(Screen.SymptomInput.route) {
             SymptomInputScreen(
                 onSubmit = { navController.navigate(Screen.Processing.route) }
