@@ -54,6 +54,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.navigation:navigation-compose:2.7.6")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+
     // AI & Storage (Sarpa-Mitra Core)
     implementation("com.google.mediapipe:tasks-genai:0.10.22")
     implementation("androidx.room:room-runtime:2.6.1")

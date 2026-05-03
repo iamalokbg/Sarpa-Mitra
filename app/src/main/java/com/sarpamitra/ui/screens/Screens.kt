@@ -260,7 +260,7 @@ fun BiteSiteCaptureScreen(
 
 // ── 5. SYMPTOM INPUT ─────────────────────────────────────────────────────────
 @Composable
-fun SymptomInputScreen(onSubmit: () -> Unit) {
+fun SymptomInputScreen(onSubmit: (symptoms: List<String>, transcript: String) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val symptoms = listOf("Swelling", "Bleeding", "Ptosis\n(drooping eyelid)", "Breathing\ndifficulty", "Pain", "Nausea")
     val selected = remember { mutableStateListOf<String>() }
@@ -419,7 +419,7 @@ fun SymptomInputScreen(onSubmit: () -> Unit) {
 
         Spacer(modifier = Modifier.weight(1f))
         Button(
-            onClick = onSubmit,
+            onClick = { onSubmit(selected.toList(), transcript) },
             modifier = Modifier.fillMaxWidth().height(64.dp),
             colors = ButtonDefaults.buttonColors(containerColor = RedColor),
             enabled = selected.isNotEmpty() || transcript.isNotEmpty()
@@ -430,17 +430,16 @@ fun SymptomInputScreen(onSubmit: () -> Unit) {
 }
 // ── 6. PROCESSING ────────────────────────────────────────────────────────────
 @Composable
-fun ProcessingScreen(onComplete: () -> Unit) {
-    val stages = listOf("Analyzing bite pattern...", "Cross-referencing symptoms...", "Applying clinical guardrails...", "Generating assessment...")
-    var currentStage by remember { mutableStateOf(0) }
-
-    LaunchedEffect(Unit) {
-        stages.indices.forEach { i ->
-            kotlinx.coroutines.delay(800)
-            currentStage = i
+fun ProcessingScreen(
+    stage: String = "",
+    isLoading: Boolean = true,
+    onComplete: () -> Unit = {}
+) {
+    LaunchedEffect(isLoading) {
+        if (!isLoading) {
+            kotlinx.coroutines.delay(500)
+            onComplete()
         }
-        kotlinx.coroutines.delay(1000)
-        onComplete()
     }
 
     Column(
@@ -451,12 +450,25 @@ fun ProcessingScreen(onComplete: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        CircularProgressIndicator(color = RedColor, modifier = Modifier.size(72.dp), strokeWidth = 6.dp)
+        CircularProgressIndicator(
+            color = RedColor,
+            modifier = Modifier.size(72.dp),
+            strokeWidth = 6.dp
+        )
         Spacer(modifier = Modifier.height(32.dp))
-        Text(text = stages.getOrElse(currentStage) { "Processing..." }, color = WhiteColor, fontSize = 18.sp, textAlign = TextAlign.Center)
+        Text(
+            text = stage.ifEmpty { "Analyzing..." },
+            color = WhiteColor,
+            fontSize = 18.sp,
+            textAlign = TextAlign.Center
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(8.dp).background(GreenColor, shape = RoundedCornerShape(4.dp)))
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(GreenColor, shape = RoundedCornerShape(4.dp))
+            )
             Spacer(modifier = Modifier.width(8.dp))
             Text(text = "No internet required", color = GreenColor, fontSize = 12.sp)
         }
@@ -466,6 +478,7 @@ fun ProcessingScreen(onComplete: () -> Unit) {
 // ── 7. RESULTS DASHBOARD ─────────────────────────────────────────────────────
 @Composable
 fun ResultsDashboardScreen(
+    result: com.sarpamitra.guardrails.TriageResult?,
     onGenerateReferral: () -> Unit,
     onStartMonitoring: () -> Unit,
     onBack: () -> Unit
@@ -473,9 +486,18 @@ fun ResultsDashboardScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     val voiceManager = remember { com.sarpamitra.voice.VoiceManager(context) }
 
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(1000)
-        voiceManager.speak("Critical severity. Neurotoxic envenomation suspected. Antivenom required. Go to District Hospital immediately.")
+    LaunchedEffect(result) {
+        if (result != null) {
+            kotlinx.coroutines.delay(1000)
+            val severityText = when (result.severity) {
+                "CRITICAL" -> "Critical severity."
+                "SEVERE" -> "Severe severity."
+                "MODERATE" -> "Moderate severity."
+                else -> "Mild severity."
+            }
+            val asvText = if (result.asvRequired) "Antivenom required. Go to District Hospital immediately." else "Antivenom may not be required. Monitor closely."
+            voiceManager.speak("$severityText $asvText")
+        }
     }
 
     DisposableEffect(Unit) {
@@ -491,9 +513,15 @@ fun ResultsDashboardScreen(
     ) {
         item {
             Spacer(modifier = Modifier.height(16.dp))
+            val severityColor = when (result?.severity) {
+                "CRITICAL" -> RedColor
+                "SEVERE" -> Color(0xFFFF6B00)
+                "MODERATE" -> AmberColor
+                else -> GreenColor
+            }
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = RedColor),
+                colors = CardDefaults.cardColors(containerColor = severityColor),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
@@ -501,24 +529,46 @@ fun ResultsDashboardScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "⚠️ CRITICAL",
+                        text = when (result?.severity) {
+                            "CRITICAL" -> "⚠️ CRITICAL"
+                            "SEVERE" -> "🔴 SEVERE"
+                            "MODERATE" -> "🟡 MODERATE"
+                            else -> "🟢 MILD"
+                        },
                         color = WhiteColor,
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Neurotoxic envenomation suspected",
+                        text = result?.reasoning ?: "Assessing...",
                         color = WhiteColor,
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Confidence: 78%",
+                        text = "Confidence: ${((result?.confidence ?: 0f) * 100).toInt()}%",
                         color = WhiteColor.copy(alpha = 0.8f),
                         fontSize = 12.sp
                     )
+                    result?.guardrailTriggered?.let { trigger ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = WhiteColor.copy(alpha = 0.2f)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = "⚡ Guardrail: $trigger",
+                                color = WhiteColor,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -531,14 +581,14 @@ fun ResultsDashboardScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "💉 ASV Required",
-                        color = AmberColor,
+                        text = if (result?.asvRequired == true) "💉 ASV Required" else "💉 ASV Not Required",
+                        color = if (result?.asvRequired == true) AmberColor else GreenColor,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Polyvalent antivenom • 8-10 vials",
+                        text = "${result?.asvType ?: "polyvalent"} • ${result?.estimatedVials ?: 8} vials",
                         color = WhiteColor,
                         fontSize = 14.sp
                     )
@@ -620,7 +670,6 @@ fun ResultsDashboardScreen(
                     }
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // District Hospital
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -642,7 +691,6 @@ fun ResultsDashboardScreen(
                     Divider(color = Color(0xFF3A3A3C))
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Sub-District
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -664,7 +712,6 @@ fun ResultsDashboardScreen(
                     Divider(color = Color(0xFF3A3A3C))
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // PHC
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -692,11 +739,7 @@ fun ResultsDashboardScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = RedColor),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text(
-                    text = "📄  GENERATE REFERRAL",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text(text = "📄  GENERATE REFERRAL", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -707,11 +750,7 @@ fun ResultsDashboardScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = AmberColor),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text(
-                    text = "⏱️  START MONITORING",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text(text = "⏱️  START MONITORING", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
         }
 

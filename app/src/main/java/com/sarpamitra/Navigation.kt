@@ -1,13 +1,13 @@
 package com.sarpamitra
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.sarpamitra.ui.screens.*
-import com.sarpamitra.ui.screens.CameraXScreen
-import com.sarpamitra.ui.screens.RedColor
-import com.sarpamitra.ui.screens.AmberColor
 
 sealed class Screen(val route: String) {
     object EmergencyLaunch : Screen("emergency_launch")
@@ -26,6 +26,9 @@ sealed class Screen(val route: String) {
 @Composable
 fun SarpaMitraNavigation() {
     val navController = rememberNavController()
+    val viewModel: TriageViewModel = viewModel()
+    val state by viewModel.state.collectAsState()
+
     NavHost(
         navController = navController,
         startDestination = Screen.EmergencyLaunch.route
@@ -43,54 +46,59 @@ fun SarpaMitraNavigation() {
                 onNoSnake = { navController.navigate(Screen.BiteSiteCapture.route) }
             )
         }
-
-        // --- Updated Camera Routes ---
         composable(Screen.SnakePhotoCapture.route) {
             CameraXScreen(
                 title = "📷 Photograph the Snake",
                 overlayColor = RedColor,
                 onPhotoCaptured = { path ->
-                    // Logic to store the path can be added here later
+                    viewModel.setSnakePhoto(path)
                     navController.navigate(Screen.SymptomInput.route)
                 },
                 onSkip = { navController.navigate(Screen.SymptomInput.route) }
             )
         }
-
         composable(Screen.BiteSiteCapture.route) {
             CameraXScreen(
                 title = "📷 Photograph the Bite Site",
                 overlayColor = AmberColor,
                 onPhotoCaptured = { path ->
-                    // Logic to store the path can be added here later
+                    viewModel.setBitePhoto(path)
                     navController.navigate(Screen.SymptomInput.route)
                 },
                 onSkip = { navController.navigate(Screen.SymptomInput.route) }
             )
         }
-        // -----------------------------
-
         composable(Screen.SymptomInput.route) {
             SymptomInputScreen(
-                onSubmit = { navController.navigate(Screen.Processing.route) }
+                onSubmit = { symptoms, transcript ->
+                    viewModel.setSymptoms(symptoms)
+                    viewModel.setTranscript(transcript)
+                    viewModel.runTriage()
+                    navController.navigate(Screen.Processing.route)
+                }
             )
         }
         composable(Screen.Processing.route) {
             ProcessingScreen(
-                onComplete = { navController.navigate(Screen.ResultsDashboard.route) }
+                stage = state.stage,
+                isLoading = state.isLoading,
+                onComplete = {
+                    if (!state.isLoading && state.result != null) {
+                        navController.navigate(Screen.ResultsDashboard.route)
+                    }
+                }
             )
         }
         composable(Screen.ResultsDashboard.route) {
             ResultsDashboardScreen(
+                result = state.result,
                 onGenerateReferral = { navController.navigate(Screen.ReferralSlip.route) },
                 onStartMonitoring = { navController.navigate(Screen.Monitoring.route) },
                 onBack = { navController.popBackStack() }
             )
         }
         composable(Screen.ReferralSlip.route) {
-            ReferralSlipScreen(
-                onBack = { navController.popBackStack() }
-            )
+            ReferralSlipScreen(onBack = { navController.popBackStack() })
         }
         composable(Screen.Monitoring.route) {
             MonitoringScreen(
@@ -105,9 +113,7 @@ fun SarpaMitraNavigation() {
             )
         }
         composable(Screen.Settings.route) {
-            SettingsScreen(
-                onBack = { navController.popBackStack() }
-            )
+            SettingsScreen(onBack = { navController.popBackStack() })
         }
     }
 }
