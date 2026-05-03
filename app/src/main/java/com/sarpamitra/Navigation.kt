@@ -98,7 +98,10 @@ fun SarpaMitraNavigation() {
             )
         }
         composable(Screen.ReferralSlip.route) {
-            ReferralSlipScreen(onBack = { navController.popBackStack() })
+            ReferralSlipScreen(
+                result = state.result,
+                onBack = { navController.popBackStack() }
+            )
         }
         composable(Screen.Monitoring.route) {
             MonitoringScreen(

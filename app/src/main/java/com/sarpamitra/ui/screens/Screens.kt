@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.asImageBitmap
 
 val BgColor = Color(0xFF1C1C1E)
 val CardColor = Color(0xFF2C2C2E)
@@ -768,44 +769,211 @@ fun ResultsDashboardScreen(
 
 // ── 8. REFERRAL SLIP ─────────────────────────────────────────────────────────
 @Composable
-fun ReferralSlipScreen(onBack: () -> Unit) {
-    Column(
+fun ReferralSlipScreen(
+    result: com.sarpamitra.guardrails.TriageResult? = null,
+    onBack: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val caseId = remember { "SM-${System.currentTimeMillis()}" }
+    val timestamp = remember { System.currentTimeMillis() }
+
+    val qrContent = remember(result) {
+        com.sarpamitra.referral.QrGenerator.buildQrContent(
+            caseId = caseId,
+            severity = result?.severity ?: "MODERATE",
+            syndrome = result?.syndrome ?: "unknown",
+            asvRequired = result?.asvRequired ?: true,
+            asvType = result?.asvType,
+            estimatedVials = result?.estimatedVials,
+            timestamp = timestamp
+        )
+    }
+
+    val qrBitmap = remember(qrContent) {
+        com.sarpamitra.referral.QrGenerator.generate(qrContent, 400)
+    }
+
+    val severityColor = when (result?.severity) {
+        "CRITICAL" -> RedColor
+        "SEVERE" -> Color(0xFFFF6B00)
+        "MODERATE" -> AmberColor
+        else -> GreenColor
+    }
+
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(BgColor)
             .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = WhiteColor),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(text = "SARPA-MITRA REFERRAL", color = Color.Black, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Divider(color = Color.Black, modifier = Modifier.padding(vertical = 8.dp))
-                Text(text = "Case ID: SM-20260501-001", color = Color.Black, fontSize = 14.sp)
-                Text(text = "Severity: CRITICAL", color = Color.Red, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(text = "Syndrome: Neurotoxic", color = Color.Black, fontSize = 14.sp)
-                Text(text = "ASV: Polyvalent • 8-10 vials", color = Color.Black, fontSize = 14.sp)
-                Spacer(modifier = Modifier.height(16.dp))
-                Box(
-                    modifier = Modifier.size(120.dp).background(Color.Gray).align(Alignment.CenterHorizontally),
-                    contentAlignment = Alignment.Center
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "📄 Referral Slip",
+                color = WhiteColor,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        item {
+            // White referral card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(text = "QR Code\n(Phase 9)", color = Color.White, textAlign = TextAlign.Center, fontSize = 12.sp)
+                    Text(
+                        text = "SARPA-MITRA",
+                        color = Color.Black,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Emergency Snakebite Referral",
+                        color = Color.Gray,
+                        fontSize = 12.sp
+                    )
+
+                    Divider(
+                        color = Color.LightGray,
+                        modifier = Modifier.padding(vertical = 12.dp)
+                    )
+
+                    // Case details
+                    ReferralRow("Case ID", caseId, Color.Black)
+                    ReferralRow(
+                        "Severity",
+                        result?.severity ?: "MODERATE",
+                        when (result?.severity) {
+                            "CRITICAL" -> Color.Red
+                            "SEVERE" -> Color(0xFFFF6B00)
+                            "MODERATE" -> Color(0xFFFF9500)
+                            else -> Color(0xFF34C759)
+                        }
+                    )
+                    ReferralRow("Syndrome", result?.syndrome ?: "unknown", Color.Black)
+                    ReferralRow(
+                        "ASV Required",
+                        if (result?.asvRequired == true) "YES" else "NO",
+                        if (result?.asvRequired == true) Color.Red else Color(0xFF34C759)
+                    )
+                    ReferralRow("ASV Type", result?.asvType ?: "polyvalent", Color.Black)
+                    ReferralRow("Est. Vials", "${result?.estimatedVials ?: 8}", Color.Black)
+                    ReferralRow(
+                        "Time",
+                        java.text.SimpleDateFormat("dd-MM-yyyy HH:mm", java.util.Locale.getDefault())
+                            .format(java.util.Date(timestamp)),
+                        Color.Black
+                    )
+
+                    if (result?.guardrailTriggered != null) {
+                        ReferralRow("Guardrail", result.guardrailTriggered!!, Color(0xFF007AFF))
+                    }
+
+                    Divider(color = Color.LightGray, modifier = Modifier.padding(vertical = 12.dp))
+
+                    // QR Code
+                    Text(
+                        text = "Scan at facility",
+                        color = Color.Gray,
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    androidx.compose.foundation.Image(
+                        bitmap = qrBitmap.asImageBitmap(),
+                        contentDescription = "QR Code",
+                        modifier = Modifier.size(180.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Distance approximate. Road conditions may vary.",
+                        color = Color.Gray,
+                        fontSize = 9.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = "Generated offline by Sarpa-Mitra AI",
+                        color = Color.Gray,
+                        fontSize = 9.sp
+                    )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Distance approximate. Road conditions may vary.", color = Color.Gray, fontSize = 10.sp)
             }
         }
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = {}, modifier = Modifier.fillMaxWidth().height(64.dp), colors = ButtonDefaults.buttonColors(containerColor = RedColor)) {
-            Text(text = "📤  SHARE REFERRAL", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+
+        item {
+            Button(
+                onClick = {
+                    // Save to gallery
+                    saveReferralToGallery(context, qrContent, caseId)
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = RedColor),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(text = "💾  SAVE TO GALLERY", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        TextButton(onClick = onBack) { Text(text = "Back", color = GrayColor) }
+
+        item {
+            Button(
+                onClick = {
+                    // Share via intent
+                    val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, qrContent)
+                        putExtra(android.content.Intent.EXTRA_SUBJECT, "Sarpa-Mitra Emergency Referral — $caseId")
+                    }
+                    context.startActivity(android.content.Intent.createChooser(shareIntent, "Share Referral"))
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = CardColor),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(text = "📤  SHARE REFERRAL", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        item {
+            TextButton(
+                onClick = onBack,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(text = "Back", color = GrayColor)
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun ReferralRow(label: String, value: String, valueColor: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = label, color = Color.Gray, fontSize = 13.sp)
+        Text(text = value, color = valueColor, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+private fun saveReferralToGallery(context: android.content.Context, content: String, caseId: String) {
+    try {
+        val filename = "Sarpa-Mitra-$caseId.txt"
+        val file = java.io.File(context.getExternalFilesDir(null), filename)
+        file.writeText(content)
+        android.widget.Toast.makeText(context, "Referral saved: $filename", android.widget.Toast.LENGTH_LONG).show()
+    } catch (e: Exception) {
+        android.widget.Toast.makeText(context, "Save failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -815,13 +983,135 @@ fun MonitoringScreen(
     onNewSymptom: () -> Unit,
     onBack: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var secondsElapsed by remember { mutableStateOf(0) }
+    var silenceSeconds by remember { mutableStateOf(0) }
+    var sosTriggered by remember { mutableStateOf(false) }
+    var nextCheckSeconds by remember { mutableStateOf(900) }
+    var showSosDialog by remember { mutableStateOf(false) }
+    var showOffsetDialog by remember { mutableStateOf(false) }
+    var offsetInput by remember { mutableStateOf("") }
+
+    val voiceManager = remember { com.sarpamitra.voice.VoiceManager(context) }
+    val sosManager = remember { com.sarpamitra.monitoring.SosManager(context) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            voiceManager.destroy()
+            sosManager.destroy()
+        }
+    }
 
     LaunchedEffect(Unit) {
         while (true) {
             kotlinx.coroutines.delay(1000)
             secondsElapsed++
+            silenceSeconds++
+            nextCheckSeconds--
+
+            if (nextCheckSeconds <= 0) {
+                nextCheckSeconds = 900
+                voiceManager.speak("Check patient now. Any new symptoms? Tap New Symptom button if yes.")
+            }
+
+            if (silenceSeconds >= 90 && !sosTriggered) {
+                sosTriggered = true
+                showSosDialog = true
+                sosManager.triggerSos("SM-${System.currentTimeMillis()}", "UNKNOWN")
+                voiceManager.speak("Madad karo! Snakebite emergency! Help needed!")
+            }
         }
+    }
+
+    fun resetSilence() { silenceSeconds = 0 }
+
+    // Offset dialog
+    if (showOffsetDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showOffsetDialog = false },
+            title = {
+                Text(
+                    text = "When did the bite happen?",
+                    color = WhiteColor,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Enter minutes before you opened the app:",
+                        color = GrayColor,
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    androidx.compose.material3.OutlinedTextField(
+                        value = offsetInput,
+                        onValueChange = { offsetInput = it.filter { c -> c.isDigit() } },
+                        label = { Text("Minutes ago", color = GrayColor) },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = WhiteColor,
+                            unfocusedTextColor = WhiteColor,
+                            focusedBorderColor = RedColor,
+                            unfocusedBorderColor = GrayColor
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        secondsElapsed = (offsetInput.toIntOrNull() ?: 0) * 60
+                        showOffsetDialog = false
+                        offsetInput = ""
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RedColor)
+                ) { Text("SET") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showOffsetDialog = false }) {
+                    Text("Cancel", color = GrayColor)
+                }
+            },
+            containerColor = CardColor
+        )
+    }
+
+    // SOS dialog
+    if (showSosDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {
+                showSosDialog = false
+                sosManager.stopStrobe()
+            },
+            title = {
+                Text(
+                    text = "🚨 SOS TRIGGERED",
+                    color = RedColor,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "90 seconds of silence detected.\nAlarm and flashlight activated.\nEmergency SMS queued.",
+                    color = WhiteColor
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showSosDialog = false
+                        sosTriggered = false
+                        silenceSeconds = 0
+                        sosManager.stopStrobe()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RedColor)
+                ) { Text("I'M OK — CANCEL SOS") }
+            },
+            containerColor = CardColor
+        )
     }
 
     Column(
@@ -832,34 +1122,131 @@ fun MonitoringScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(32.dp))
-        Text(text = "⏱️ MONITORING", color = WhiteColor, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(8.dp))
+
         Text(
-            text = "Time since bite: ${secondsElapsed / 60}m ${secondsElapsed % 60}s",
-            color = AmberColor,
-            fontSize = 18.sp
+            text = "⏱️ MONITORING",
+            color = WhiteColor,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
         )
-        Spacer(modifier = Modifier.height(32.dp))
-        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = CardColor), shape = RoundedCornerShape(16.dp)) {
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Timer with edit button
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "Time since bite: ${secondsElapsed / 60}m ${secondsElapsed % 60}s",
+                color = AmberColor,
+                fontSize = 18.sp
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            TextButton(onClick = { showOffsetDialog = true }) {
+                Text(text = "✏️ Edit", color = GrayColor, fontSize = 12.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardColor),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Next check in: ${nextCheckSeconds / 60}m ${nextCheckSeconds % 60}s",
+                    color = GrayColor,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = "Silence SOS in: ${(90 - silenceSeconds).coerceAtLeast(0)}s",
+                    color = if (silenceSeconds > 60) RedColor else GrayColor,
+                    fontSize = 12.sp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardColor),
+            shape = RoundedCornerShape(16.dp)
+        ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(text = "Watch for:", color = WhiteColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "Watch for:",
+                    color = WhiteColor,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
                 Spacer(modifier = Modifier.height(8.dp))
-                listOf("Drooping eyelids (ptosis)", "Difficulty swallowing", "Breathing problems", "Increased swelling", "Bleeding").forEach {
+                listOf(
+                    "Drooping eyelids (ptosis)",
+                    "Difficulty swallowing",
+                    "Breathing problems",
+                    "Increased swelling",
+                    "Bleeding from bite"
+                ).forEach {
                     Text(text = "• $it", color = GrayColor, fontSize = 14.sp)
                 }
             }
         }
+
         Spacer(modifier = Modifier.weight(1f))
+
         Button(
-            onClick = onNewSymptom,
-            modifier = Modifier.fillMaxWidth().height(80.dp),
+            onClick = {
+                resetSilence()
+                onNewSymptom()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(80.dp),
             colors = ButtonDefaults.buttonColors(containerColor = RedColor),
             shape = RoundedCornerShape(16.dp)
         ) {
-            Text(text = "🚨  NEW SYMPTOM", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(
+                text = "🚨  NEW SYMPTOM",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
+
         Spacer(modifier = Modifier.height(12.dp))
-        TextButton(onClick = onBack) { Text(text = "Back", color = GrayColor) }
+
+        Button(
+            onClick = {
+                resetSilence()
+                voiceManager.speak("Patient stable. Continuing to monitor.")
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = GreenColor),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Text(
+                text = "✅  I'M HERE — PATIENT STABLE",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        TextButton(onClick = {
+            resetSilence()
+            onBack()
+        }) {
+            Text(text = "Back", color = GrayColor)
+        }
     }
 }
 
