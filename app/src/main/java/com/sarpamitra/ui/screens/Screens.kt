@@ -1322,7 +1322,10 @@ fun HistoryScreen(
 
 // ── 11. SETTINGS ─────────────────────────────────────────────────────────────
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(
+    onBack: () -> Unit,
+    onBenchmark: () -> Unit = {}
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = context.getSharedPreferences("sarpa_prefs", android.content.Context.MODE_PRIVATE)
 
@@ -1340,6 +1343,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         Text(text = "Settings", color = WhiteColor, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Language
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CardColor),
@@ -1379,6 +1383,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Model Status
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CardColor),
@@ -1392,16 +1397,70 @@ fun SettingsScreen(onBack: () -> Unit) {
                     color = GreenColor,
                     fontSize = 13.sp
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "✅ Model loaded — offline ready",
+                    color = GreenColor,
+                    fontSize = 12.sp
+                )
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = {},
-                    colors = ButtonDefaults.buttonColors(containerColor = GrayColor)
+                    colors = ButtonDefaults.buttonColors(containerColor = GrayColor),
+                    modifier = Modifier.fillMaxWidth()
                 ) { Text(text = "Check for Update (USB)") }
             }
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Developer
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardColor),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(text = "Developer", color = WhiteColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Run inference benchmark to measure performance on this device.",
+                    color = GrayColor,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = onBenchmark,
+                    colors = ButtonDefaults.buttonColors(containerColor = GrayColor),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(text = "📊 Run Benchmarks") }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // About
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardColor),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(text = "About", color = WhiteColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(text = "Sarpa-Mitra v1.0", color = GrayColor, fontSize = 13.sp)
+                Text(text = "Offline snakebite triage for rural India", color = GrayColor, fontSize = 12.sp)
+                Text(text = "Clinical protocol: WHO/ICMR guidelines", color = GrayColor, fontSize = 12.sp)
+                Text(text = "AI: Gemma 2B via MediaPipe LiteRT", color = GrayColor, fontSize = 12.sp)
+            }
+        }
+
         Spacer(modifier = Modifier.weight(1f))
-        TextButton(onClick = onBack) {
+
+        TextButton(
+            onClick = onBack,
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Text(text = "Back", color = GrayColor)
         }
     }

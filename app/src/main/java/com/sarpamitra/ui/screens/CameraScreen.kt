@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.hardware.Sensor
 import android.hardware.SensorManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.*
@@ -54,9 +55,25 @@ fun CameraXScreen(
     var camera: Camera? by remember { mutableStateOf(null) }
     var isCapturing by remember { mutableStateOf(false) }
 
+    // Camera permission launcher
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> hasCameraPermission = granted }
+
+    // Gallery launcher
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            statusMessage = "Loading from gallery..."
+            val path = copyUriToFile(context, it)
+            if (path != null) {
+                onPhotoCaptured(path)
+            } else {
+                statusMessage = "Could not load image. Try camera instead."
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
@@ -64,7 +81,7 @@ fun CameraXScreen(
         }
     }
 
-    // Check ambient light and enable torch
+    // Ambient light sensor
     val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     val lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT)
     var isLowLight by remember { mutableStateOf(false) }
@@ -79,12 +96,10 @@ fun CameraXScreen(
         lightSensor?.let {
             sensorManager.registerListener(listener, it, SensorManager.SENSOR_DELAY_NORMAL)
         }
-        onDispose {
-            sensorManager.unregisterListener(listener)
-        }
+        onDispose { sensorManager.unregisterListener(listener) }
     }
 
-    // Auto-enable torch in low light
+    // Auto torch in low light
     LaunchedEffect(isLowLight, camera) {
         camera?.cameraControl?.enableTorch(isLowLight)
     }
@@ -93,7 +108,7 @@ fun CameraXScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(BgColor)
-    )
+    ) {
         if (!hasCameraPermission) {
             Column(
                 modifier = Modifier.fillMaxSize(),
@@ -106,6 +121,13 @@ fun CameraXScreen(
                     Text("Grant Permission")
                 }
                 Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { galleryLauncher.launch("image/*") },
+                    colors = ButtonDefaults.buttonColors(containerColor = CardColor)
+                ) {
+                    Text("🖼️ Choose from Gallery instead", color = WhiteColor)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
                 TextButton(onClick = onSkip) {
                     Text("Skip — use voice only", color = GrayColor)
                 }
@@ -116,6 +138,7 @@ fun CameraXScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
+
                 Text(
                     text = title,
                     color = WhiteColor,
@@ -138,7 +161,7 @@ fun CameraXScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(350.dp)
+                        .height(320.dp)
                         .padding(horizontal = 16.dp)
                         .border(3.dp, overlayColor, RoundedCornerShape(16.dp))
                 ) {
@@ -175,11 +198,18 @@ fun CameraXScreen(
 
                 if (statusMessage.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = statusMessage, color = AmberColor, fontSize = 13.sp, textAlign = TextAlign.Center)
+                    Text(
+                        text = statusMessage,
+                        color = AmberColor,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
 
+                // CAPTURE button
                 Button(
                     onClick = {
                         if (!isCapturing) {
@@ -206,8 +236,10 @@ fun CameraXScreen(
                                         }
                                     }
                                     override fun onError(exception: ImageCaptureException) {
-                                        statusMessage = "Capture failed: ${exception.message}"
-                                        isCapturing = false
+                                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                            statusMessage = "Capture failed: ${exception.message}"
+                                            isCapturing = false
+                                        }
                                     }
                                 }
                             )
@@ -216,31 +248,65 @@ fun CameraXScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp)
-                        .height(72.dp),
+                        .height(64.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = overlayColor),
                     shape = RoundedCornerShape(16.dp),
                     enabled = !isCapturing
                 ) {
                     Text(
-                        text = if (isCapturing) "Capturing..." else "📷  CAPTURE",
-                        fontSize = 20.sp,
+                        text = if (isCapturing) "Capturing..." else "📷  CAPTURE PHOTO",
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // GALLERY button
+                Button(
+                    onClick = { galleryLauncher.launch("image/*") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = CardColor),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text(
+                        text = "🖼️  CHOOSE FROM GALLERY",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = WhiteColor
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 TextButton(onClick = onSkip) {
                     Text(text = "Skip camera → voice only", color = GrayColor)
                 }
+
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }
+}
 
+// Copy gallery URI to app internal storage
+fun copyUriToFile(context: Context, uri: Uri): String? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+        val file = File(context.filesDir, "gallery_${System.currentTimeMillis()}.jpg")
+        file.outputStream().use { output -> inputStream.copyTo(output) }
+        inputStream.close()
+        file.absolutePath
+    } catch (e: Exception) {
+        null
+    }
+}
 
 // Native Kotlin blur detection — no OpenCV
 fun laplacianVariance(bitmap: Bitmap): Float {
-    // Scale down to 200x200 before processing — prevents OOM crash
     val scaled = Bitmap.createScaledBitmap(bitmap, 200, 200, true)
     val width = scaled.width
     val height = scaled.height

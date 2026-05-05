@@ -24,6 +24,7 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        freeCompilerArgs += "-Xskip-metadata-version-check"
     }
 
     buildFeatures {
@@ -59,7 +60,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
 
     // AI & Storage (Sarpa-Mitra Core)
-    implementation("com.google.mediapipe:tasks-genai:0.10.22")
+    implementation("com.google.ai.edge.litertlm:litertlm-android:latest.release")
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")

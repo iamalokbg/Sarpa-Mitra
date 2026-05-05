@@ -21,6 +21,8 @@ sealed class Screen(val route: String) {
     object Monitoring : Screen("monitoring")
     object History : Screen("history")
     object Settings : Screen("settings")
+
+    object Benchmark : Screen("benchmark")
 }
 
 @Composable
@@ -56,6 +58,9 @@ fun SarpaMitraNavigation() {
                 },
                 onSkip = { navController.navigate(Screen.SymptomInput.route) }
             )
+        }
+        composable(Screen.Benchmark.route) {
+            BenchmarkScreen(onBack = { navController.popBackStack() })
         }
         composable(Screen.BiteSiteCapture.route) {
             CameraXScreen(
@@ -116,7 +121,10 @@ fun SarpaMitraNavigation() {
             )
         }
         composable(Screen.Settings.route) {
-            SettingsScreen(onBack = { navController.popBackStack() })
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
+                onBenchmark = { navController.navigate(Screen.Benchmark.route) }
+            )
         }
     }
 }
