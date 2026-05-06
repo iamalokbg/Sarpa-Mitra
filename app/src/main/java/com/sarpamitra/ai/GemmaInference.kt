@@ -36,6 +36,7 @@ class GemmaInference(private val context: Context) {
                 cacheDir = context.cacheDir.absolutePath
             )
             engine = Engine(config)
+            engine?.initialize()
             conversation = engine?.createConversation(freshConvConfig())
             true
         } catch (e: Exception) {
@@ -44,35 +45,11 @@ class GemmaInference(private val context: Context) {
         }
     }
 
-    suspend fun analyzeBiteWound(
-        imagePath: String,
-        hoursSinceBite: Float?
-    ): String? = withContext(Dispatchers.IO) {
-        if (engine == null) {
-            if (!loadModel()) return@withContext null
-        }
-        return@withContext try {
-            val hoursText = if (hoursSinceBite != null) "Hours since bite: $hoursSinceBite." else ""
-            val prompt = """You are an emergency medical assistant analyzing a snakebite wound image.
-$hoursText
-Analyze this wound image and respond ONLY with valid JSON, no markdown, no extra text:
-{"fang_marks_visible":true|false,"swelling_grade":"none|mild|moderate|severe","necrosis_present":true|false,"wound_spread_cm":0,"skin_discoloration":"none|mild|severe","confidence":0.75,"findings":"brief clinical description"}"""
-
-            val message = Contents.of(
-                Content.ImageFile(imagePath),
-                Content.Text(prompt)
-            )
-            val response = conversation?.sendMessage(message)
-            val raw = response?.contents?.contents
-                ?.filterIsInstance<Content.Text>()
-                ?.joinToString("") { it.text } ?: ""
-
-            resetConversation()
-            raw.ifEmpty { null }
-        } catch (e: Exception) {
-            resetConversation()
-            null
-        }
+    // Vision disabled on 4GB devices — OOM crash
+    // Photo is saved for documentation only
+    // Returns true always — no blocking
+    suspend fun validateWoundPhoto(imagePath: String): Boolean = withContext(Dispatchers.IO) {
+        return@withContext true
     }
 
     suspend fun triage(
@@ -93,21 +70,29 @@ Analyze this wound image and respond ONLY with valid JSON, no markdown, no extra
             symptoms.joinToString(", ").ifEmpty { transcript },
             ageYears,
             hoursSinceBite,
-            woundFindings
+            hasBitePhoto
         )
 
         return@withContext try {
             val message = Contents.of(Content.Text(prompt))
             val response = conversation?.sendMessage(message)
-            val raw = response?.contents?.contents
-                ?.filterIsInstance<Content.Text>()
-                ?.joinToString("") { it.text } ?: ""
+            val raw = response?.toString() ?: ""
             resetConversation()
             val parsed = parseJson(raw)
-            ClinicalGuardrail.apply(parsed, symptoms + transcript.split(" "), ageYears, hoursSinceBite)
+            ClinicalGuardrail.apply(
+                parsed,
+                symptoms + transcript.split(" "),
+                ageYears,
+                hoursSinceBite
+            )
         } catch (e: Exception) {
             val fallback = fallbackResult(symptoms)
-            ClinicalGuardrail.apply(fallback, symptoms + transcript.split(" "), ageYears, hoursSinceBite)
+            ClinicalGuardrail.apply(
+                fallback,
+                symptoms + transcript.split(" "),
+                ageYears,
+                hoursSinceBite
+            )
         }
     }
 
@@ -115,18 +100,17 @@ Analyze this wound image and respond ONLY with valid JSON, no markdown, no extra
         symptoms: String,
         age: Int?,
         hours: Float?,
-        woundFindings: String?
+        hasBitePhoto: Boolean
     ): String {
         val ageText = if (age != null) "Patient age: $age years." else ""
         val hoursText = if (hours != null) "Hours since bite: $hours." else ""
-        val woundText = if (woundFindings != null) "Wound analysis findings: $woundFindings" else ""
+        val photoText = if (hasBitePhoto) "A wound photo has been captured and saved for hospital review." else ""
         return """You are an emergency snakebite triage assistant in rural India.
-$ageText $hoursText
-$woundText
+$ageText $hoursText $photoText
 Symptoms reported: $symptoms
 
 Respond ONLY with valid JSON, no markdown, no explanation, no extra text:
-{"syndrome":"neurotoxic|hemotoxic|cytotoxic|unknown","severity":"MILD|MODERATE|SEVERE|CRITICAL","asv_required":true|false,"asv_type":"polyvalent|monovalent_cobra|monovalent_viper|null","estimated_vials":8,"urgency":"routine|urgent|immediate","confidence":0.75,"reasoning":"brief explanation"}"""
+{"syndrome":"neurotoxic","severity":"MILD|MODERATE|SEVERE|CRITICAL","asv_required":true,"asv_type":"polyvalent","estimated_vials":8,"urgency":"urgent","confidence":0.75,"reasoning":"brief explanation"}"""
     }
 
     private fun freshConvConfig() = ConversationConfig(

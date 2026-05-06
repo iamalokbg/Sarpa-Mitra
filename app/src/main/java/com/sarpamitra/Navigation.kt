@@ -21,7 +21,6 @@ sealed class Screen(val route: String) {
     object Monitoring : Screen("monitoring")
     object History : Screen("history")
     object Settings : Screen("settings")
-
     object Benchmark : Screen("benchmark")
 }
 
@@ -37,8 +36,8 @@ fun SarpaMitraNavigation() {
     ) {
         composable(Screen.EmergencyLaunch.route) {
             EmergencyLaunchScreen(
-                onSpeakClick = { navController.navigate(Screen.SnakeAvailability.route) },
-                onCameraClick = { navController.navigate(Screen.SnakeAvailability.route) },
+                onSpeakClick = { navController.navigate(Screen.SymptomInput.route) },
+                onCameraClick = { navController.navigate(Screen.SnakePhotoCapture.route) },
                 onHistoryClick = { navController.navigate(Screen.History.route) }
             )
         }
@@ -50,17 +49,17 @@ fun SarpaMitraNavigation() {
         }
         composable(Screen.SnakePhotoCapture.route) {
             CameraXScreen(
-                title = "📷 Photograph the Snake",
+                title = "📷 Photograph the Bite Wound",
                 overlayColor = RedColor,
                 onPhotoCaptured = { path ->
-                    viewModel.setSnakePhoto(path)
+                    viewModel.setBitePhoto(path)
                     navController.navigate(Screen.SymptomInput.route)
                 },
-                onSkip = { navController.navigate(Screen.SymptomInput.route) }
+                onSkip = { navController.navigate(Screen.SymptomInput.route) },
+                onValidatePhoto = { path ->
+                    viewModel.validateWoundPhoto(path)
+                }
             )
-        }
-        composable(Screen.Benchmark.route) {
-            BenchmarkScreen(onBack = { navController.popBackStack() })
         }
         composable(Screen.BiteSiteCapture.route) {
             CameraXScreen(
@@ -70,7 +69,10 @@ fun SarpaMitraNavigation() {
                     viewModel.setBitePhoto(path)
                     navController.navigate(Screen.SymptomInput.route)
                 },
-                onSkip = { navController.navigate(Screen.SymptomInput.route) }
+                onSkip = { navController.navigate(Screen.SymptomInput.route) },
+                onValidatePhoto = { path ->
+                    viewModel.validateWoundPhoto(path)
+                }
             )
         }
         composable(Screen.SymptomInput.route) {
@@ -125,6 +127,9 @@ fun SarpaMitraNavigation() {
                 onBack = { navController.popBackStack() },
                 onBenchmark = { navController.navigate(Screen.Benchmark.route) }
             )
+        }
+        composable(Screen.Benchmark.route) {
+            BenchmarkScreen(onBack = { navController.popBackStack() })
         }
     }
 }

@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -39,10 +41,12 @@ fun CameraXScreen(
     title: String,
     overlayColor: Color,
     onPhotoCaptured: (String) -> Unit,
-    onSkip: () -> Unit
+    onSkip: () -> Unit,
+    onValidatePhoto: (suspend (String) -> Boolean)? = null
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -54,13 +58,38 @@ fun CameraXScreen(
     var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
     var camera: Camera? by remember { mutableStateOf(null) }
     var isCapturing by remember { mutableStateOf(false) }
+    var isValidating by remember { mutableStateOf(false) }
+    var showNotWoundDialog by remember { mutableStateOf(false) }
+    var pendingPhotoPath by remember { mutableStateOf<String?>(null) }
 
-    // Camera permission launcher
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> hasCameraPermission = granted }
 
-    // Gallery launcher
+    // Shared validation logic
+    fun validateAndProceed(path: String) {
+        if (onValidatePhoto != null) {
+            isValidating = true
+            statusMessage = "🔍 Gemma 4 checking photo..."
+            scope.launch(Dispatchers.IO) {
+                val isValid = onValidatePhoto(path)
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    isCapturing = false
+                    isValidating = false
+                    statusMessage = ""
+                    if (isValid) {
+                        onPhotoCaptured(path)
+                    } else {
+                        pendingPhotoPath = path
+                        showNotWoundDialog = true
+                    }
+                }
+            }
+        } else {
+            onPhotoCaptured(path)
+        }
+    }
+
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -68,7 +97,7 @@ fun CameraXScreen(
             statusMessage = "Loading from gallery..."
             val path = copyUriToFile(context, it)
             if (path != null) {
-                onPhotoCaptured(path)
+                validateAndProceed(path)
             } else {
                 statusMessage = "Could not load image. Try camera instead."
             }
@@ -81,7 +110,6 @@ fun CameraXScreen(
         }
     }
 
-    // Ambient light sensor
     val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     val lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT)
     var isLowLight by remember { mutableStateOf(false) }
@@ -99,9 +127,54 @@ fun CameraXScreen(
         onDispose { sensorManager.unregisterListener(listener) }
     }
 
-    // Auto torch in low light
     LaunchedEffect(isLowLight, camera) {
         camera?.cameraControl?.enableTorch(isLowLight)
+    }
+
+    // Not a wound photo dialog
+    if (showNotWoundDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showNotWoundDialog = false
+                pendingPhotoPath = null
+                isCapturing = false
+                statusMessage = ""
+            },
+            title = {
+                Text(
+                    text = "⚠️ May Not Be a Wound Photo",
+                    color = AmberColor,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "This photo doesn't appear to show a snakebite wound or bite site.\n\nIn an emergency, you can use it anyway — or retake a clearer photo of the bite.",
+                    color = WhiteColor
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showNotWoundDialog = false
+                        pendingPhotoPath?.let { onPhotoCaptured(it) }
+                        pendingPhotoPath = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AmberColor)
+                ) { Text("USE ANYWAY") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showNotWoundDialog = false
+                        pendingPhotoPath = null
+                        isCapturing = false
+                        statusMessage = "Please photograph the bite site"
+                    }
+                ) { Text("RETAKE", color = GrayColor) }
+            },
+            containerColor = CardColor
+        )
     }
 
     Box(
@@ -147,15 +220,27 @@ fun CameraXScreen(
                 )
 
                 if (isLowLight) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "⚡ Low light — flashlight active",
-                        color = AmberColor,
-                        fontSize = 13.sp
-                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(text = "⚡ Low light — flashlight active", color = AmberColor, fontSize = 13.sp)
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                if (isValidating) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = GreenColor,
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(text = "Gemma 4 checking photo...", color = GreenColor, fontSize = 13.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Camera Preview
                 Box(
@@ -212,7 +297,7 @@ fun CameraXScreen(
                 // CAPTURE button
                 Button(
                     onClick = {
-                        if (!isCapturing) {
+                        if (!isCapturing && !isValidating) {
                             isCapturing = true
                             statusMessage = "Capturing..."
                             val executor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -227,11 +312,11 @@ fun CameraXScreen(
                                         val variance = laplacianVariance(bitmap)
                                         android.os.Handler(android.os.Looper.getMainLooper()).post {
                                             if (variance < 100f) {
-                                                statusMessage = "Photo blurry (score: ${variance.toInt()}). Hold steady and retry."
+                                                statusMessage = "Photo blurry. Hold steady and retry."
                                                 isCapturing = false
                                                 file.delete()
                                             } else {
-                                                onPhotoCaptured(file.absolutePath)
+                                                validateAndProceed(file.absolutePath)
                                             }
                                         }
                                     }
@@ -251,10 +336,14 @@ fun CameraXScreen(
                         .height(64.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = overlayColor),
                     shape = RoundedCornerShape(16.dp),
-                    enabled = !isCapturing
+                    enabled = !isCapturing && !isValidating
                 ) {
                     Text(
-                        text = if (isCapturing) "Capturing..." else "📷  CAPTURE PHOTO",
+                        text = when {
+                            isValidating -> "🔍 Checking..."
+                            isCapturing -> "Capturing..."
+                            else -> "📷  CAPTURE WOUND PHOTO"
+                        },
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -262,15 +351,15 @@ fun CameraXScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // GALLERY button
                 Button(
-                    onClick = { galleryLauncher.launch("image/*") },
+                    onClick = { if (!isCapturing && !isValidating) galleryLauncher.launch("image/*") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp)
                         .height(56.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = CardColor),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    enabled = !isCapturing && !isValidating
                 ) {
                     Text(
                         text = "🖼️  CHOOSE FROM GALLERY",
@@ -282,8 +371,10 @@ fun CameraXScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                TextButton(onClick = onSkip) {
-                    Text(text = "Skip camera → voice only", color = GrayColor)
+                TextButton(
+                    onClick = { if (!isCapturing && !isValidating) onSkip() }
+                ) {
+                    Text(text = "Skip camera → describe symptoms only", color = GrayColor)
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -292,7 +383,6 @@ fun CameraXScreen(
     }
 }
 
-// Copy gallery URI to app internal storage
 fun copyUriToFile(context: Context, uri: Uri): String? {
     return try {
         val inputStream = context.contentResolver.openInputStream(uri) ?: return null
@@ -305,7 +395,6 @@ fun copyUriToFile(context: Context, uri: Uri): String? {
     }
 }
 
-// Native Kotlin blur detection — no OpenCV
 fun laplacianVariance(bitmap: Bitmap): Float {
     val scaled = Bitmap.createScaledBitmap(bitmap, 200, 200, true)
     val width = scaled.width
@@ -313,7 +402,6 @@ fun laplacianVariance(bitmap: Bitmap): Float {
     var sum = 0.0
     var sumSq = 0.0
     var count = 0
-
     for (y in 1 until height - 1) {
         for (x in 1 until width - 1) {
             val center = scaled.getPixel(x, y).toLuminance()
@@ -327,7 +415,6 @@ fun laplacianVariance(bitmap: Bitmap): Float {
             count++
         }
     }
-
     scaled.recycle()
     if (count == 0) return 0f
     val mean = sum / count

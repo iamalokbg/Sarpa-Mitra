@@ -18,7 +18,8 @@ data class TriageState(
     val transcript: String = "",
     val snakePhotoPath: String? = null,
     val bitePhotoPath: String? = null,
-    val isModelMissing: Boolean = false
+    val isModelMissing: Boolean = false,
+    val hoursSinceBite: Float? = null
 )
 
 class TriageViewModel(application: Application) : AndroidViewModel(application) {
@@ -44,16 +45,25 @@ class TriageViewModel(application: Application) : AndroidViewModel(application) 
         _state.value = _state.value.copy(bitePhotoPath = path)
     }
 
+    fun setHoursSinceBite(hours: Float) {
+        _state.value = _state.value.copy(hoursSinceBite = hours)
+    }
+
+    // Called from CameraScreen via Navigation — reuses existing Gemma instance
+    suspend fun validateWoundPhoto(imagePath: String): Boolean {
+        return gemma.validateWoundPhoto(imagePath)
+    }
+
     fun runTriage() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, error = null, stage = "Loading model...")
 
             val state = _state.value
 
-            _state.value = _state.value.copy(stage = "Analyzing symptoms...")
+            _state.value = _state.value.copy(stage = "Analyzing wound photo...")
             kotlinx.coroutines.delay(600)
 
-            _state.value = _state.value.copy(stage = "Cross-referencing syndromes...")
+            _state.value = _state.value.copy(stage = "Cross-referencing symptoms...")
             kotlinx.coroutines.delay(600)
 
             _state.value = _state.value.copy(stage = "Applying clinical guardrails...")
@@ -62,9 +72,10 @@ class TriageViewModel(application: Application) : AndroidViewModel(application) 
                 symptoms = state.symptoms,
                 transcript = state.transcript,
                 ageYears = null,
-                hoursSinceBite = null,
+                hoursSinceBite = state.hoursSinceBite,
                 hasSnakePhoto = state.snakePhotoPath != null,
-                hasBitePhoto = state.bitePhotoPath != null
+                hasBitePhoto = state.bitePhotoPath != null,
+                woundFindings = null
             )
 
             if (gemma.isModelMissing) {
