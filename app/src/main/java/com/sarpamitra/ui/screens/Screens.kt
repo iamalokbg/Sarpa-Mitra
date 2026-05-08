@@ -490,13 +490,19 @@ fun ResultsDashboardScreen(
     LaunchedEffect(result) {
         if (result != null) {
             kotlinx.coroutines.delay(1000)
+            val prefs = context.getSharedPreferences("sarpa_prefs", android.content.Context.MODE_PRIVATE)
+            val isHindi = prefs.getBoolean("is_hindi", true)
             val severityText = when (result.severity) {
-                "CRITICAL" -> "Critical severity."
-                "SEVERE" -> "Severe severity."
-                "MODERATE" -> "Moderate severity."
-                else -> "Mild severity."
+                "CRITICAL" -> if (isHindi) "गंभीर स्थिति।" else "Critical severity."
+                "SEVERE" -> if (isHindi) "खतरनाक स्थिति।" else "Severe severity."
+                "MODERATE" -> if (isHindi) "मध्यम स्थिति।" else "Moderate severity."
+                else -> if (isHindi) "हल्की स्थिति।" else "Mild severity."
             }
-            val asvText = if (result.asvRequired) "Antivenom required. Go to District Hospital immediately." else "Antivenom may not be required. Monitor closely."
+            val asvText = if (result.asvRequired) {
+                if (isHindi) "एंटीवेनम जरूरी है। जिला अस्पताल जाएं।" else "Antivenom required. Go to District Hospital immediately."
+            } else {
+                if (isHindi) "एंटीवेनम की जरूरत नहीं। निगरानी जारी रखें।" else "Antivenom may not be required. Monitor closely."
+            }
             voiceManager.speak("$severityText $asvText")
         }
     }
@@ -984,6 +990,9 @@ fun MonitoringScreen(
     onBack: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = context.getSharedPreferences("sarpa_prefs", android.content.Context.MODE_PRIVATE)
+    val isHindi = prefs.getBoolean("is_hindi", true)
+
     var secondsElapsed by remember { mutableStateOf(0) }
     var silenceSeconds by remember { mutableStateOf(0) }
     var sosTriggered by remember { mutableStateOf(false) }
@@ -1011,27 +1020,34 @@ fun MonitoringScreen(
 
             if (nextCheckSeconds <= 0) {
                 nextCheckSeconds = 900
-                voiceManager.speak("Check patient now. Any new symptoms? Tap New Symptom button if yes.")
+                if (isHindi) {
+                    voiceManager.speak("मरीज की जांच करें। कोई नया लक्षण? नया लक्षण बटन दबाएं।")
+                } else {
+                    voiceManager.speak("Check patient now. Any new symptoms? Tap New Symptom button if yes.")
+                }
             }
 
             if (silenceSeconds >= 90 && !sosTriggered) {
                 sosTriggered = true
                 showSosDialog = true
                 sosManager.triggerSos("SM-${System.currentTimeMillis()}", "UNKNOWN")
-                voiceManager.speak("Madad karo! Snakebite emergency! Help needed!")
+                if (isHindi) {
+                    voiceManager.speak("मदद करो! सांप काटा है! मदद चाहिए!")
+                } else {
+                    voiceManager.speak("Help needed! Snakebite emergency! Help!")
+                }
             }
         }
     }
 
     fun resetSilence() { silenceSeconds = 0 }
 
-    // Offset dialog
     if (showOffsetDialog) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showOffsetDialog = false },
             title = {
                 Text(
-                    text = "When did the bite happen?",
+                    text = if (isHindi) "काटने का समय?" else "When did the bite happen?",
                     color = WhiteColor,
                     fontWeight = FontWeight.Bold
                 )
@@ -1039,7 +1055,7 @@ fun MonitoringScreen(
             text = {
                 Column {
                     Text(
-                        text = "Enter minutes before you opened the app:",
+                        text = if (isHindi) "ऐप खोलने से पहले कितने मिनट हुए थे?" else "Enter minutes before you opened the app:",
                         color = GrayColor,
                         fontSize = 13.sp
                     )
@@ -1047,7 +1063,7 @@ fun MonitoringScreen(
                     androidx.compose.material3.OutlinedTextField(
                         value = offsetInput,
                         onValueChange = { offsetInput = it.filter { c -> c.isDigit() } },
-                        label = { Text("Minutes ago", color = GrayColor) },
+                        label = { Text(if (isHindi) "मिनट पहले" else "Minutes ago", color = GrayColor) },
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
                         ),
@@ -1068,18 +1084,17 @@ fun MonitoringScreen(
                         offsetInput = ""
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = RedColor)
-                ) { Text("SET") }
+                ) { Text(if (isHindi) "सेट करें" else "SET") }
             },
             dismissButton = {
                 TextButton(onClick = { showOffsetDialog = false }) {
-                    Text("Cancel", color = GrayColor)
+                    Text(if (isHindi) "रद्द करें" else "Cancel", color = GrayColor)
                 }
             },
             containerColor = CardColor
         )
     }
 
-    // SOS dialog
     if (showSosDialog) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = {
@@ -1088,14 +1103,17 @@ fun MonitoringScreen(
             },
             title = {
                 Text(
-                    text = "🚨 SOS TRIGGERED",
+                    text = "🚨 ${if (isHindi) "आपातकाल सक्रिय" else "SOS TRIGGERED"}",
                     color = RedColor,
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Text(
-                    text = "90 seconds of silence detected.\nAlarm and flashlight activated.\nEmergency SMS queued.",
+                    text = if (isHindi)
+                        "90 सेकंड की चुप्पी। अलार्म और टॉर्च चालू। SMS भेजा जा रहा है।"
+                    else
+                        "90 seconds of silence detected.\nAlarm and flashlight activated.\nEmergency SMS queued.",
                     color = WhiteColor
                 )
             },
@@ -1108,7 +1126,7 @@ fun MonitoringScreen(
                         sosManager.stopStrobe()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = RedColor)
-                ) { Text("I'M OK — CANCEL SOS") }
+                ) { Text(if (isHindi) "मैं ठीक हूं — रद्द करें" else "I'M OK — CANCEL SOS") }
             },
             containerColor = CardColor
         )
@@ -1124,7 +1142,7 @@ fun MonitoringScreen(
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-            text = "⏱️ MONITORING",
+            text = "⏱️ ${if (isHindi) "निगरानी" else "MONITORING"}",
             color = WhiteColor,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold
@@ -1132,19 +1150,21 @@ fun MonitoringScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Timer with edit button
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Time since bite: ${secondsElapsed / 60}m ${secondsElapsed % 60}s",
+                text = if (isHindi)
+                    "काटने के बाद: ${secondsElapsed / 60}मि ${secondsElapsed % 60}से"
+                else
+                    "Time since bite: ${secondsElapsed / 60}m ${secondsElapsed % 60}s",
                 color = AmberColor,
                 fontSize = 18.sp
             )
             Spacer(modifier = Modifier.width(8.dp))
             TextButton(onClick = { showOffsetDialog = true }) {
-                Text(text = "✏️ Edit", color = GrayColor, fontSize = 12.sp)
+                Text(text = "✏️ ${if (isHindi) "बदलें" else "Edit"}", color = GrayColor, fontSize = 12.sp)
             }
         }
 
@@ -1160,12 +1180,18 @@ fun MonitoringScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Next check in: ${nextCheckSeconds / 60}m ${nextCheckSeconds % 60}s",
+                    text = if (isHindi)
+                        "अगली जांच: ${nextCheckSeconds / 60}मि ${nextCheckSeconds % 60}से"
+                    else
+                        "Next check in: ${nextCheckSeconds / 60}m ${nextCheckSeconds % 60}s",
                     color = GrayColor,
                     fontSize = 14.sp
                 )
                 Text(
-                    text = "Silence SOS in: ${(90 - silenceSeconds).coerceAtLeast(0)}s",
+                    text = if (isHindi)
+                        "SOS में: ${(90 - silenceSeconds).coerceAtLeast(0)}से"
+                    else
+                        "Silence SOS in: ${(90 - silenceSeconds).coerceAtLeast(0)}s",
                     color = if (silenceSeconds > 60) RedColor else GrayColor,
                     fontSize = 12.sp
                 )
@@ -1181,20 +1207,28 @@ fun MonitoringScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Watch for:",
+                    text = if (isHindi) "इन लक्षणों पर ध्यान दें:" else "Watch for:",
                     color = WhiteColor,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                listOf(
-                    "Drooping eyelids (ptosis)",
-                    "Difficulty swallowing",
-                    "Breathing problems",
-                    "Increased swelling",
-                    "Bleeding from bite"
-                ).forEach {
-                    Text(text = "• $it", color = GrayColor, fontSize = 14.sp)
+                if (isHindi) {
+                    listOf(
+                        "पलकें झुकना (ptosis)",
+                        "निगलने में कठिनाई",
+                        "सांस लेने में तकलीफ",
+                        "सूजन बढ़ना",
+                        "काटने की जगह से खून"
+                    ).forEach { Text(text = "• $it", color = GrayColor, fontSize = 14.sp) }
+                } else {
+                    listOf(
+                        "Drooping eyelids (ptosis)",
+                        "Difficulty swallowing",
+                        "Breathing problems",
+                        "Increased swelling",
+                        "Bleeding from bite"
+                    ).forEach { Text(text = "• $it", color = GrayColor, fontSize = 14.sp) }
                 }
             }
         }
@@ -1206,14 +1240,12 @@ fun MonitoringScreen(
                 resetSilence()
                 onNewSymptom()
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(80.dp),
+            modifier = Modifier.fillMaxWidth().height(80.dp),
             colors = ButtonDefaults.buttonColors(containerColor = RedColor),
             shape = RoundedCornerShape(16.dp)
         ) {
             Text(
-                text = "🚨  NEW SYMPTOM",
+                text = if (isHindi) "🚨  नया लक्षण" else "🚨  NEW SYMPTOM",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -1224,16 +1256,18 @@ fun MonitoringScreen(
         Button(
             onClick = {
                 resetSilence()
-                voiceManager.speak("Patient stable. Continuing to monitor.")
+                if (isHindi) {
+                    voiceManager.speak("मरीज ठीक है। निगरानी जारी है।")
+                } else {
+                    voiceManager.speak("Patient stable. Continuing to monitor.")
+                }
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
             colors = ButtonDefaults.buttonColors(containerColor = GreenColor),
             shape = RoundedCornerShape(16.dp)
         ) {
             Text(
-                text = "✅  I'M HERE — PATIENT STABLE",
+                text = if (isHindi) "✅  मैं यहां हूं — मरीज ठीक है" else "✅  I'M HERE — PATIENT STABLE",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -1245,7 +1279,7 @@ fun MonitoringScreen(
             resetSilence()
             onBack()
         }) {
-            Text(text = "Back", color = GrayColor)
+            Text(text = if (isHindi) "वापस" else "Back", color = GrayColor)
         }
     }
 }
