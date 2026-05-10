@@ -13,6 +13,19 @@
 | Runtime | LiteRT-LM 0.11.0 — CPU backend   |
 
 ---
+## Swelling Photo Timeline
+
+| Metric | Value |
+|---|---|
+| Reminder interval | Every 15 minutes |
+| Countdown dialog | 30 seconds before auto-snooze |
+| Snooze duration | 5 minutes |
+| Photo compression | JPEG 85% quality |
+| Storage location | Internal app storage (private) |
+| Max photos (6hr session) | ~24 photos |
+| Estimated storage (24 photos) | ~12MB |
+| Doctor access | Case Detail screen → horizontal gallery |
+| Referral slip | Shows photo count + instruction to doctor |
 
 ## Results
 

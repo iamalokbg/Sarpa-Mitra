@@ -92,3 +92,32 @@ Sources: WHO Snakebite Management Guidelines 2016, ICMR Guidelines 2022.
 | Adult hemotoxic | Age 35, swelling + pain, 2hrs | MODERATE, hemotoxic, ASV | [paste your result] | ✅ |
 
 All tests run on Redmi 12, airplane mode, Gemma 4 E2B via LiteRT-LM.
+
+---
+
+## Swelling Documentation Protocol
+
+### Clinical Basis
+From the doctor's lecture (Government Medical College, Kerala):
+> "Local reaction — swelling spreading proximally, crossing a joint —
+> is grade one envenomation requiring ASV."
+
+Progressive swelling documentation gives the hospital doctor a timeline
+they cannot get any other way. Speed of spread informs dosing decisions.
+
+### Implementation
+- Voice prompt fires every 15 minutes during monitoring
+- Dialog cannot be dismissed by tapping outside — forces a decision
+- 30-second countdown with circular progress indicator
+- Auto-snoozes 5 minutes if ignored — reminds again
+- Photos saved with exact minutes-since-bite timestamp
+- Accessible to doctor via Case Detail screen gallery
+
+### What the Doctor Sees
+[0 min photo] → [15 min photo] → [30 min photo] → [45 min photo]
+Horizontal scroll gallery with timestamp labels.
+Swelling crossing a joint between photos = Grade 1+ envenomation = ASV required.
+
+### Privacy
+Photos stored in Android internal storage — not accessible via phone gallery.
+Medical data stays on device. No cloud upload.

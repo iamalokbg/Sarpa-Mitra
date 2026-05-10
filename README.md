@@ -36,6 +36,11 @@ You speak. It listens. It tells you what to do — out loud, in local language.
 | QR referral slip generation | ✅ |
 | 15-minute monitoring with auto-SOS | ✅ |
 | 90-second silence emergency trigger | ✅ |
+| Swelling photo timeline (every 15 min) | ✅ |
+| Timestamped photo gallery for doctor | ✅ |
+| 30-second countdown photo reminder | ✅ |
+| Photo count on referral slip | ✅ |
+
 ---
 
 ## The Design Philosophy
@@ -53,19 +58,52 @@ You speak. It listens. It tells you what to do — out loud, in local language.
 ---
 
 ## Architecture
-User speaks symptoms in Hindi
-↓
-Android offline STT (no internet)
-↓
+
+```
+User speaks symptoms in Hindi / taps symptom chips
+        ↓
+Patient age selected (Child / Teen / Adult / Elder)
+        ↓
+Android offline STT — hi-IN / en-US (no internet)
+        ↓
+Wound photo captured → stored with case record
+        ↓
 Gemma 4 E2B — LiteRT-LM CPU backend
-(2.58GB model, runs fully on device)
-↓
+(2.58GB model, runs fully on device, ~2.4s inference)
+        ↓
 ClinicalGuardrail.kt
 (5 hardcoded WHO/ICMR rules override AI output)
-↓
-Severity dashboard + voice output
-↓
-QR referral slip → Hospital routing
+Rule 1: Ptosis/breathing → CRITICAL regardless of confidence
+Rule 2: Confidence < 60% → force ASV + flag uncertainty
+Rule 3: Age < 12 → weight-based pediatric vial dosing
+Rule 4: 6hr + zero symptoms → dry bite, no ASV
+Rule 5: Neuro + hemo signs → polyvalent ASV, max urgency
+        ↓
+Severity dashboard — Hindi/English voice output (TTS)
+        ↓
+┌─────────────────────────────────────────┐
+│         Monitoring Mode (optional)       │
+│  Every 15 min → voice prompt            │
+│  30-second countdown dialog             │
+│  ASHA captures swelling photo           │
+│  Timestamped → saved to case record     │
+│  90-second silence → SOS alarm + flash  │
+└─────────────────────────────────────────┘
+        ↓
+QR referral slip
+→ Case ID, severity, syndrome, ASV, vials, guardrail
+→ Swelling photo count + "Ask ASHA to show phone"
+→ "For the Receiving Doctor" card (WBCT reminder)
+        ↓
+Hospital routing (tier-based probability)
+District Hospital → HIGH probability
+Sub-District → Medium-High
+PHC → Variable ⚠️
+        ↓
+Doctor scans QR → opens Case Detail screen
+→ Swelling photo gallery (horizontal scroll, timestamped)
+→ Visual progression confirms envenomation grade
+```
 
 ---
 
