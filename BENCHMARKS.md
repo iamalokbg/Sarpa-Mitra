@@ -27,6 +27,16 @@
 
 ---
 
+## Clinical Input Parameters
+
+| Parameter | Supported | Notes |
+|---|---|---|
+| Symptoms | ✅ | 6 chips + voice |
+| Patient age | ✅ | 4 age groups → guardrail Rule 3 |
+| Hours since bite | ✅ | Editable in monitoring → guardrail Rule 4 |
+| Wound photo | ✅ | Documented, stored with case |
+
+
 ## Measurement Method
 
 Inference time measured manually with stopwatch:

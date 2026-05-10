@@ -39,14 +39,26 @@ class VoiceManager(private val context: Context) {
     }
 
     fun speak(text: String, onDone: (() -> Unit)? = null) {
-        if (!isTtsReady) return
-        tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) {}
-            override fun onDone(utteranceId: String?) { onDone?.invoke() }
-            override fun onError(utteranceId: String?) {}
-        })
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "sarpa_utterance")
+        if (isTtsReady) {
+            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+                override fun onDone(utteranceId: String?) { onDone?.invoke() }
+                override fun onError(utteranceId: String?) {}
+            })
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "sarpa_utterance")
+        } else {
+            // TTS not ready yet — retry after 2 seconds
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) { onDone?.invoke() }
+                    override fun onError(utteranceId: String?) {}
+                })
+                tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "sarpa_utterance")
+            }, 2000)
+        }
     }
+
 
     fun startListening(
         onResult: (String) -> Unit,

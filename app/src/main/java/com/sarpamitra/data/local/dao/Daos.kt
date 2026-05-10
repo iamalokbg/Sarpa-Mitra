@@ -13,8 +13,18 @@ interface PatientSessionDao {
     @Query("SELECT * FROM patient_sessions ORDER BY timestamp DESC")
     suspend fun getAll(): List<PatientSession>
 
+    @Query("SELECT * FROM patient_sessions WHERE timestamp > :since ORDER BY timestamp DESC LIMIT 1")
+    fun getActiveSession(since: Long): com.sarpamitra.data.local.entity.PatientSession?
+
+    @Query("SELECT * FROM patient_sessions ORDER BY timestamp DESC")
+    fun getAllSessions(): List<PatientSession>
+
     @Query("SELECT * FROM patient_sessions WHERE syncStatus = 'LOCAL'")
     suspend fun getUnsynced(): List<PatientSession>
+
+    @Query("DELETE FROM patient_sessions WHERE sessionId = :sessionId")
+    fun deleteSession(sessionId: String)
+
 
     @Query("UPDATE patient_sessions SET syncStatus = 'SYNCED' WHERE sessionId = :id")
     suspend fun markSynced(id: String)

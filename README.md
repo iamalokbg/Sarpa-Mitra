@@ -23,17 +23,19 @@ Sarpa-Mitra is a voice-first, offline emergency triage app for ASHA workers and 
 
 You speak. It listens. It tells you what to do — out loud, in local language.
 
-| Feature | What it means in the field |
+| Feature | Status |
 |---|---|
-| Voice triage — Hindi + English | A panicking family member can speak instead of type |
-| Wound photo documentation | Visual record saved for hospital review |
-| Gemma 4 E2B on-device | Real AI reasoning without internet |
-| Hardcoded clinical guardrails | AI output verified against WHO/ICMR before it reaches the user |
-| Tier-based hospital routing | Honest — no fake stock data, just institutional probability |
-| QR referral slip | Doctor scans at hospital, sees full case history |
-| 15-minute monitoring | Voice reminds carer to check symptoms every 15 minutes |
-| 90-second silence SOS | If patient loses consciousness, app screams for help |
-
+| Voice triage — Hindi + English | ✅ |
+| Patient age input (pediatric dosing) | ✅ |
+| Hindi + English UI voice output | ✅ |
+| WHO/ICMR first aid protocol | ✅ |
+| Wound photo capture for documentation | ✅ |
+| Gemma 4 E2B via LiteRT-LM | ✅ |
+| Hardcoded clinical guardrails (WHO/ICMR) | ✅ |
+| Tier-based hospital routing | ✅ |
+| QR referral slip generation | ✅ |
+| 15-minute monitoring with auto-SOS | ✅ |
+| 90-second silence emergency trigger | ✅ |
 ---
 
 ## The Design Philosophy

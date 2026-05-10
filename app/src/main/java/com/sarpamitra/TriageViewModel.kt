@@ -8,6 +8,8 @@ import com.sarpamitra.guardrails.TriageResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 data class TriageState(
     val isLoading: Boolean = false,
@@ -19,7 +21,8 @@ data class TriageState(
     val snakePhotoPath: String? = null,
     val bitePhotoPath: String? = null,
     val isModelMissing: Boolean = false,
-    val hoursSinceBite: Float? = null
+    val hoursSinceBite: Float? = null,
+    val ageYears: Int? = null
 )
 
 class TriageViewModel(application: Application) : AndroidViewModel(application) {
@@ -49,34 +52,73 @@ class TriageViewModel(application: Application) : AndroidViewModel(application) 
         _state.value = _state.value.copy(hoursSinceBite = hours)
     }
 
-    // Called from CameraScreen via Navigation — reuses existing Gemma instance
+    fun setAgeYears(age: Int) {
+        _state.value = _state.value.copy(ageYears = age)
+    }
+
     suspend fun validateWoundPhoto(imagePath: String): Boolean {
         return gemma.validateWoundPhoto(imagePath)
     }
 
     fun runTriage() {
         viewModelScope.launch {
-            _state.value = _state.value.copy(isLoading = true, error = null, stage = "Loading model...")
+            _state.value = _state.value.copy(
+                isLoading = true,
+                error = null,
+                stage = "Loading model..."
+            )
 
-            val state = _state.value
+            val currentState = _state.value
 
-            _state.value = _state.value.copy(stage = "Analyzing wound photo...")
+            _state.value = _state.value.copy(stage = "Analyzing symptoms...")
             kotlinx.coroutines.delay(600)
 
-            _state.value = _state.value.copy(stage = "Cross-referencing symptoms...")
+            _state.value = _state.value.copy(stage = "Cross-referencing syndromes...")
             kotlinx.coroutines.delay(600)
 
             _state.value = _state.value.copy(stage = "Applying clinical guardrails...")
 
             val result = gemma.triage(
-                symptoms = state.symptoms,
-                transcript = state.transcript,
-                ageYears = null,
-                hoursSinceBite = state.hoursSinceBite,
-                hasSnakePhoto = state.snakePhotoPath != null,
-                hasBitePhoto = state.bitePhotoPath != null,
+                symptoms = currentState.symptoms,
+                transcript = currentState.transcript,
+                ageYears = currentState.ageYears,
+                hoursSinceBite = currentState.hoursSinceBite,
+                hasSnakePhoto = currentState.snakePhotoPath != null,
+                hasBitePhoto = currentState.bitePhotoPath != null,
                 woundFindings = null
             )
+
+            // Save to Room DB with proper session ID
+            val sessionId = "SM-${System.currentTimeMillis()}"
+            withContext<Unit>(Dispatchers.IO) {
+                val db = com.sarpamitra.data.local.AppDatabase.getInstance(getApplication())
+                db.patientSessionDao().insert(
+                    com.sarpamitra.data.local.entity.PatientSession(
+                        sessionId = sessionId,
+                        timestamp = System.currentTimeMillis(),
+                        biteLocation = "",
+                        symptomsJson = currentState.symptoms.joinToString(","),
+                        snakePhotoPath = currentState.snakePhotoPath,
+                        bitePhotoPath = currentState.bitePhotoPath,
+                        severity = result.severity,
+                        asvRequired = result.asvRequired,
+                        asvType = result.asvType,
+                        estimatedVials = result.estimatedVials,
+                        urgency = result.urgency,
+                        confidence = result.confidence,
+                        reasoning = result.reasoning,
+                        guardrailTriggered = result.guardrailTriggered,
+                        referralGenerated = false,
+                        syncStatus = "LOCAL"
+                    )
+                )
+                // Rename swelling photos from SM-CURRENT to real session ID
+                val appContext: android.content.Context = getApplication()
+                com.sarpamitra.monitoring.SwellingPhotoManager.renameSession(
+                    appContext, "SM-CURRENT", sessionId
+                )
+
+            }
 
             if (gemma.isModelMissing) {
                 _state.value = _state.value.copy(
