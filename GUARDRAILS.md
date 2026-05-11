@@ -121,3 +121,39 @@ Swelling crossing a joint between photos = Grade 1+ envenomation = ASV required.
 ### Privacy
 Photos stored in Android internal storage — not accessible via phone gallery.
 Medical data stays on device. No cloud upload.
+
+---
+
+## Symptom Progression Documentation
+
+### Clinical Basis
+From the doctor's lecture:
+> "Snakebite is dynamic. A patient who looks fine now can stop
+> breathing in 20 minutes."
+
+A single triage snapshot is insufficient. Symptom progression over
+time is critical clinical data — especially for neurotoxic bites
+where onset is delayed.
+
+### Implementation
+
+**Initial triage logged automatically:**
+When ANALYZE NOW is tapped — symptoms, voice transcript, and
+timestamp (0 minutes) are saved to the case record.
+
+**New symptoms logged during monitoring:**
+Every time the ASHA worker taps NEW SYMPTOM — the current time
+post-bite is logged alongside the symptom report. This creates
+a timestamped progression record.
+
+### What the Doctor Sees in Case Detail
+📋 Symptom History          2 entries
+🔴 Initial Triage           0 min • 15:02
+Swelling, Ptosis, Pain
+"aankhein band ho rahi hain"
+🟡 New Symptom              22 min • 15:24
+New symptom reported at 22 minutes
+
+A symptom appearing at 22 minutes that was absent at 0 minutes
+confirms active envenomation progression — not a dry bite.
+This directly informs the decision to administer or repeat ASV.

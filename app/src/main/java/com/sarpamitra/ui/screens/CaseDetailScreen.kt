@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sarpamitra.monitoring.SwellingPhoto
 import com.sarpamitra.monitoring.SwellingPhotoManager
-import java.io.File
+import com.sarpamitra.monitoring.SymptomHistoryManager
 
 @Composable
 fun CaseDetailScreen(
@@ -34,6 +34,7 @@ fun CaseDetailScreen(
 ) {
     val context = LocalContext.current
     val photos = remember { SwellingPhotoManager.getPhotos(context, caseId) }
+    val symptomHistory = remember { SymptomHistoryManager.getHistory(context, caseId) }
 
     val severityColor = when (severity) {
         "CRITICAL" -> RedColor
@@ -68,6 +69,7 @@ fun CaseDetailScreen(
             }
         }
 
+        // Severity card
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -86,11 +88,123 @@ fun CaseDetailScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(text = syndrome, color = WhiteColor, fontSize = 14.sp)
-                    Text(text = timestamp, color = WhiteColor.copy(alpha = 0.8f), fontSize = 12.sp)
+                    Text(
+                        text = timestamp,
+                        color = WhiteColor.copy(alpha = 0.8f),
+                        fontSize = 12.sp
+                    )
                 }
             }
         }
 
+        // Symptom history timeline
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = CardColor),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "📋 Symptom History",
+                            color = WhiteColor,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${symptomHistory.size} entries",
+                            color = GrayColor,
+                            fontSize = 13.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (symptomHistory.isEmpty()) {
+                        Text(
+                            text = "No symptom history recorded.",
+                            color = GrayColor,
+                            fontSize = 13.sp
+                        )
+                    } else {
+                        symptomHistory.forEachIndexed { index, entry ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                // Timeline indicator
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.width(32.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .background(
+                                                if (index == 0) RedColor else AmberColor,
+                                                shape = RoundedCornerShape(6.dp)
+                                            )
+                                    )
+                                    if (index < symptomHistory.size - 1) {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(2.dp)
+                                                .height(48.dp)
+                                                .background(Color(0xFF3A3A3C))
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = if (index == 0) "Initial Triage" else "New Symptom",
+                                            color = if (index == 0) RedColor else AmberColor,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "${entry.minutesSinceBite} min • ${entry.timeLabel}",
+                                            color = GrayColor,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                    if (entry.symptoms.isNotEmpty() &&
+                                        entry.symptoms.first().isNotEmpty()
+                                    ) {
+                                        Text(
+                                            text = entry.symptoms.joinToString(", "),
+                                            color = WhiteColor,
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                    if (entry.transcript.isNotEmpty()) {
+                                        Text(
+                                            text = "\"${entry.transcript}\"",
+                                            color = GrayColor,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Swelling photos
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -133,18 +247,15 @@ fun CaseDetailScreen(
                             fontSize = 11.sp
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(photos) { photo ->
-                                SwellingPhotoCard(photo = photo)
-                            }
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(photos) { photo -> SwellingPhotoCard(photo = photo) }
                         }
                     }
                 }
             }
         }
 
+        // For the doctor
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -159,28 +270,35 @@ fun CaseDetailScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(8.dp))
+                    if (symptomHistory.size > 1) {
+                        Text(
+                            text = "• ${symptomHistory.size} symptom reports over ${symptomHistory.last().minutesSinceBite} minutes",
+                            color = GrayColor, fontSize = 13.sp
+                        )
+                    }
+                    if (photos.isNotEmpty()) {
+                        Text(
+                            text = "• Swelling documented at: ${photos.map { "${it.minutesSinceBite}min" }.joinToString(", ")}",
+                            color = GrayColor, fontSize = 13.sp
+                        )
+                        Text(
+                            text = "• Progressive swelling across joints = Grade 1+ envenomation",
+                            color = GrayColor, fontSize = 13.sp
+                        )
+                        Text(
+                            text = "• Compare first vs last photo for spread rate",
+                            color = GrayColor, fontSize = 13.sp
+                        )
+                    }
                     Text(
-                        text = "• Photos show swelling at ${photos.map { it.minutesSinceBite }.joinToString(", ")} minutes post-bite",
-                        color = GrayColor,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = "• Progressive swelling across joints = Grade 1+ envenomation",
-                        color = GrayColor,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = "• Compare first vs last photo for spread rate",
-                        color = GrayColor,
-                        fontSize = 13.sp
+                        text = "• Perform WBCT on arrival",
+                        color = GrayColor, fontSize = 13.sp
                     )
                 }
             }
         }
 
-        item {
-            Spacer(modifier = Modifier.height(24.dp))
-        }
+        item { Spacer(modifier = Modifier.height(24.dp)) }
     }
 }
 
@@ -188,13 +306,9 @@ fun CaseDetailScreen(
 fun SwellingPhotoCard(photo: SwellingPhoto) {
     val bitmap = remember(photo.path) {
         try {
-            val options = android.graphics.BitmapFactory.Options().apply {
-                inSampleSize = 2
-            }
+            val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }
             BitmapFactory.decodeFile(photo.path, options)
-        } catch (e: Exception) {
-            null
-        }
+        } catch (e: Exception) { null }
     }
 
     Card(
@@ -207,9 +321,7 @@ fun SwellingPhotoCard(photo: SwellingPhoto) {
                 Image(
                     bitmap = bitmap.asImageBitmap(),
                     contentDescription = "Swelling at ${photo.minutesSinceBite} minutes",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp),
+                    modifier = Modifier.fillMaxWidth().height(120.dp),
                     contentScale = ContentScale.Crop
                 )
             } else {
@@ -219,22 +331,14 @@ fun SwellingPhotoCard(photo: SwellingPhoto) {
                         .height(120.dp)
                         .background(Color(0xFF2C2C2E)),
                     contentAlignment = Alignment.Center
-                ) {
-                    Text(text = "📷", fontSize = 32.sp)
-                }
+                ) { Text(text = "📷", fontSize = 32.sp) }
             }
             Column(modifier = Modifier.padding(8.dp)) {
                 Text(
                     text = "${photo.minutesSinceBite} min",
-                    color = AmberColor,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
+                    color = AmberColor, fontSize = 14.sp, fontWeight = FontWeight.Bold
                 )
-                Text(
-                    text = photo.timeLabel,
-                    color = GrayColor,
-                    fontSize = 11.sp
-                )
+                Text(text = photo.timeLabel, color = GrayColor, fontSize = 11.sp)
             }
         }
     }

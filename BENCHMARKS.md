@@ -86,6 +86,17 @@ LiteRT-LM supports both CPU and GPU backends. We chose CPU for two reasons:
 
 ---
 
+## Symptom History Timeline
+
+| Metric | Value |
+|---|---|
+| Initial log | Automatic at triage (0 min) |
+| Subsequent logs | Every NEW SYMPTOM tap during monitoring |
+| Storage | SharedPreferences per case ID |
+| Max entries | Unlimited |
+| Displayed in | Case Detail screen — vertical timeline |
+| Doctor access | Via History → tap case → Symptom History card |
+| Data includes | Symptoms, voice transcript, minutes post-bite, clock time |
 ## Target Device Profile
 
 Sarpa-Mitra targets the most common Android device in rural India:

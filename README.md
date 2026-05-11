@@ -40,7 +40,9 @@ You speak. It listens. It tells you what to do — out loud, in local language.
 | Timestamped photo gallery for doctor | ✅ |
 | 30-second countdown photo reminder | ✅ |
 | Photo count on referral slip | ✅ |
-
+| Symptom history timeline | ✅ |
+| New symptom logging during monitoring | ✅ |
+| Doctor-facing symptom progression view | ✅ |
 ---
 
 ## The Design Philosophy
@@ -101,8 +103,10 @@ Sub-District → Medium-High
 PHC → Variable ⚠️
         ↓
 Doctor scans QR → opens Case Detail screen
+→ Symptom history timeline (initial + new symptoms with timestamps)
 → Swelling photo gallery (horizontal scroll, timestamped)
 → Visual progression confirms envenomation grade
+→ "For the Doctor" clinical notes
 ```
 
 ---

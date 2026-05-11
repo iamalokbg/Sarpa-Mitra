@@ -88,10 +88,13 @@ class TriageViewModel(application: Application) : AndroidViewModel(application) 
                 woundFindings = null
             )
 
-            // Save to Room DB with proper session ID
             val sessionId = "SM-${System.currentTimeMillis()}"
+
             withContext<Unit>(Dispatchers.IO) {
-                val db = com.sarpamitra.data.local.AppDatabase.getInstance(getApplication())
+                val appContext: android.content.Context = getApplication()
+                val db = com.sarpamitra.data.local.AppDatabase.getInstance(appContext)
+
+                // Save to Room DB
                 db.patientSessionDao().insert(
                     com.sarpamitra.data.local.entity.PatientSession(
                         sessionId = sessionId,
@@ -112,12 +115,23 @@ class TriageViewModel(application: Application) : AndroidViewModel(application) 
                         syncStatus = "LOCAL"
                     )
                 )
-                // Rename swelling photos from SM-CURRENT to real session ID
-                val appContext: android.content.Context = getApplication()
+
+                // Log initial symptoms to history
+                com.sarpamitra.monitoring.SymptomHistoryManager.logSymptoms(
+                    context = appContext,
+                    caseId = "SM-CURRENT",
+                    symptoms = currentState.symptoms,
+                    transcript = currentState.transcript,
+                    minutesSinceBite = 0
+                )
+
+                // Rename SM-CURRENT to real session ID
                 com.sarpamitra.monitoring.SwellingPhotoManager.renameSession(
                     appContext, "SM-CURRENT", sessionId
                 )
-
+                com.sarpamitra.monitoring.SymptomHistoryManager.renameSession(
+                    appContext, "SM-CURRENT", sessionId
+                )
             }
 
             if (gemma.isModelMissing) {

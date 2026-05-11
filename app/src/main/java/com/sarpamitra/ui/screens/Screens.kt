@@ -249,147 +249,251 @@ fun SymptomInputScreen(
 
     DisposableEffect(Unit) { onDispose { voiceManager.destroy() } }
 
-    Column(
+    androidx.compose.foundation.lazy.LazyColumn(
         modifier = Modifier.fillMaxSize().background(BgColor).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(32.dp))
-        Text(
-            text = if (isHindi) "लक्षण क्या हैं?" else "What symptoms?",
-            color = WhiteColor, fontSize = 24.sp, fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(16.dp))
+        item {
+            Spacer(modifier = Modifier.height(32.dp))
+            Text(
+                text = if (isHindi) "लक्षण क्या हैं?" else "What symptoms?",
+                color = WhiteColor, fontSize = 24.sp, fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
-        if (transcript.isNotEmpty()) {
+        // Voice button
+        item {
+            Button(
+                onClick = {
+                    if (!hasMicPermission) {
+                        permissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                        return@Button
+                    }
+                    if (!isListening) {
+                        isListening = true
+                        statusMsg = if (isHindi) "🎤 सुन रहा है..." else "🎤 Listening..."
+                        voiceManager.setLanguage(isHindi)
+                        voiceManager.startListening(
+                            onResult = { text ->
+                                transcript = text
+                                isListening = false
+                                statusMsg = if (isHindi) "लक्षण चुनें या सबमिट करें" else "Tap symptoms or submit"
+                            },
+                            onError = { error -> statusMsg = error; isListening = false }
+                        )
+                    } else {
+                        voiceManager.stopListening()
+                        isListening = false
+                        statusMsg = if (isHindi) "बोलने के लिए बटन दबाएं" else "Hold button to speak symptoms"
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(80.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = if (isListening) GreenColor else RedColor),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(
+                    text = when {
+                        !hasMicPermission -> if (isHindi) "🎤  माइक की अनुमति दें" else "🎤  TAP TO GRANT MIC"
+                        isListening -> if (isHindi) "🎤 सुन रहा है... (रोकने के लिए दबाएं)" else "🎤 LISTENING... (tap to stop)"
+                        else -> if (isHindi) "🎤  बोलने के लिए दबाएं" else "🎤  HOLD TO SPEAK"
+                    },
+                    fontSize = 16.sp, fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Language: ${if (isHindi) "Hindi 🇮🇳" else "English 🇬🇧"}  •  Change in Settings",
+                color = GrayColor, fontSize = 11.sp
+            )
+            Text(text = statusMsg, color = GrayColor, fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        // Text input
+        item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = CardColor),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text(text = "\"$transcript\"", color = GreenColor, fontSize = 14.sp, modifier = Modifier.padding(12.dp))
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = if (isHindi) "✏️ या लिखें:" else "✏️ Or type symptoms:",
+                        color = GrayColor,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    androidx.compose.material3.OutlinedTextField(
+                        value = transcript,
+                        onValueChange = { transcript = it },
+                        placeholder = {
+                            Text(
+                                text = if (isHindi)
+                                    "जैसे: सूजन, दर्द, पलकें झुकना..."
+                                else
+                                    "e.g. swelling, pain, drooping eyelids...",
+                                color = GrayColor,
+                                fontSize = 13.sp
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = WhiteColor,
+                            unfocusedTextColor = WhiteColor,
+                            focusedBorderColor = RedColor,
+                            unfocusedBorderColor = GrayColor,
+                            cursorColor = WhiteColor
+                        ),
+                        maxLines = 3,
+                        trailingIcon = {
+                            if (transcript.isNotEmpty()) {
+                                androidx.compose.material3.IconButton(
+                                    onClick = { transcript = "" }
+                                ) {
+                                    Text(text = "✕", color = GrayColor, fontSize = 14.sp)
+                                }
+                            }
+                        }
+                    )
+                    if (transcript.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (isHindi) "✓ लक्षण दर्ज किए गए" else "✓ Symptoms entered",
+                            color = GreenColor,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
             }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        // Symptom chips header
+        item {
+            Text(
+                text = if (isHindi) "या लक्षण चुनें:" else "Or tap symptoms:",
+                color = GrayColor, fontSize = 14.sp
+            )
             Spacer(modifier = Modifier.height(12.dp))
         }
 
-        Button(
-            onClick = {
-                if (!hasMicPermission) { permissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO); return@Button }
-                if (!isListening) {
-                    isListening = true
-                    statusMsg = if (isHindi) "🎤 सुन रहा है..." else "🎤 Listening..."
-                    voiceManager.setLanguage(isHindi)
-                    voiceManager.startListening(
-                        onResult = { text -> transcript = text; isListening = false; statusMsg = if (isHindi) "लक्षण चुनें या सबमिट करें" else "Tap symptoms or submit" },
-                        onError = { error -> statusMsg = error; isListening = false }
-                    )
-                } else {
-                    voiceManager.stopListening(); isListening = false
-                    statusMsg = if (isHindi) "बोलने के लिए बटन दबाएं" else "Hold button to speak symptoms"
-                }
-            },
-            modifier = Modifier.fillMaxWidth().height(80.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = if (isListening) GreenColor else RedColor),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Text(
-                text = when {
-                    !hasMicPermission -> if (isHindi) "🎤  माइक की अनुमति दें" else "🎤  TAP TO GRANT MIC"
-                    isListening -> if (isHindi) "🎤 सुन रहा है... (रोकने के लिए दबाएं)" else "🎤 LISTENING... (tap to stop)"
-                    else -> if (isHindi) "🎤  बोलने के लिए दबाएं" else "🎤  HOLD TO SPEAK"
-                },
-                fontSize = 16.sp, fontWeight = FontWeight.Bold
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(text = "Language: ${if (isHindi) "Hindi 🇮🇳" else "English 🇬🇧"}  •  Change in Settings", color = GrayColor, fontSize = 11.sp)
-        Text(text = statusMsg, color = GrayColor, fontSize = 12.sp)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(text = if (isHindi) "या लक्षण चुनें:" else "Or tap symptoms:", color = GrayColor, fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(12.dp))
-
-        val hindiSymptoms = listOf("सूजन", "खून बहना", "पलकें झुकना\n(ptosis)", "सांस लेने में\nतकलीफ", "दर्द", "मतली")
+        // Symptom chips
+        val hindiSymptoms = listOf(
+            "सूजन", "खून बहना", "पलकें झुकना\n(ptosis)",
+            "सांस लेने में\nतकलीफ", "दर्द", "मतली"
+        )
         val displaySymptoms = if (isHindi) hindiSymptoms else symptoms
 
-        displaySymptoms.chunked(2).forEachIndexed { rowIndex, row ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        items(displaySymptoms.chunked(2).size) { rowIndex ->
+            val row = displaySymptoms.chunked(2)[rowIndex]
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 row.forEachIndexed { colIndex, symptom ->
                     val originalSymptom = symptoms[rowIndex * 2 + colIndex]
                     val isSelected = selected.contains(originalSymptom)
                     Card(
                         modifier = Modifier.weight(1f).height(64.dp).clickable {
-                            if (isSelected) selected.remove(originalSymptom) else selected.add(originalSymptom)
+                            if (isSelected) selected.remove(originalSymptom)
+                            else selected.add(originalSymptom)
                         },
-                        colors = CardDefaults.cardColors(containerColor = if (isSelected) RedColor else CardColor),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) RedColor else CardColor
+                        ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(text = symptom, color = WhiteColor, fontSize = 13.sp, textAlign = TextAlign.Center)
+                            Text(
+                                text = symptom,
+                                color = WhiteColor,
+                                fontSize = 13.sp,
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
+                }
+                // Fill empty space if odd number in row
+                if (row.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
         }
 
         // Age selector
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CardColor),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = if (isHindi) "मरीज की उम्र (वैकल्पिक)" else "Patient age (optional)",
-                    color = GrayColor, fontSize = 13.sp, fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    data class AgeGroup(val label: String, val hindiLabel: String, val value: String)
-                    listOf(
-                        AgeGroup("Child\n<12", "बच्चा\n<12", "8"),
-                        AgeGroup("Teen\n12-17", "किशोर\n12-17", "15"),
-                        AgeGroup("Adult\n18-60", "वयस्क\n18-60", "35"),
-                        AgeGroup("Elder\n60+", "बुजुर्ग\n60+", "65")
-                    ).forEach { group ->
-                        Card(
-                            modifier = Modifier.weight(1f).height(56.dp).clickable {
-                                patientAge = if (patientAge == group.value) "" else group.value
-                            },
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (patientAge == group.value) AmberColor else Color(0xFF3A3A3C)
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = if (isHindi) group.hindiLabel else group.label,
-                                    color = WhiteColor, fontSize = 11.sp, textAlign = TextAlign.Center
-                                )
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = CardColor),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = if (isHindi) "मरीज की उम्र (वैकल्पिक)" else "Patient age (optional)",
+                        color = GrayColor, fontSize = 13.sp, fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        data class AgeGroup(val label: String, val hindiLabel: String, val value: String)
+                        listOf(
+                            AgeGroup("Child\n<12", "बच्चा\n<12", "8"),
+                            AgeGroup("Teen\n12-17", "किशोर\n12-17", "15"),
+                            AgeGroup("Adult\n18-60", "वयस्क\n18-60", "35"),
+                            AgeGroup("Elder\n60+", "बुजुर्ग\n60+", "65")
+                        ).forEach { group ->
+                            Card(
+                                modifier = Modifier.weight(1f).height(56.dp).clickable {
+                                    patientAge = if (patientAge == group.value) "" else group.value
+                                },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (patientAge == group.value) AmberColor else Color(0xFF3A3A3C)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = if (isHindi) group.hindiLabel else group.label,
+                                        color = WhiteColor,
+                                        fontSize = 11.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
                             }
                         }
                     }
-                }
-                if (patientAge.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = if (isHindi) "✓ उम्र चुनी: ~$patientAge वर्ष" else "✓ Age selected: ~$patientAge years",
-                        color = AmberColor, fontSize = 11.sp
-                    )
+                    if (patientAge.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (isHindi) "✓ उम्र चुनी: ~$patientAge वर्ष" else "✓ Age selected: ~$patientAge years",
+                            color = AmberColor, fontSize = 11.sp
+                        )
+                    }
                 }
             }
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
-        Spacer(modifier = Modifier.weight(1f))
-
-        Button(
-            onClick = { onSubmit(selected.toList(), transcript, patientAge.toIntOrNull()) },
-            modifier = Modifier.fillMaxWidth().height(64.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = RedColor),
-            enabled = selected.isNotEmpty() || transcript.isNotEmpty()
-        ) {
-            Text(text = if (isHindi) "अभी विश्लेषण करें" else "ANALYZE NOW", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        // Analyze button
+        item {
+            Button(
+                onClick = { onSubmit(selected.toList(), transcript, patientAge.toIntOrNull()) },
+                modifier = Modifier.fillMaxWidth().height(64.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = RedColor),
+                enabled = selected.isNotEmpty() || transcript.isNotEmpty()
+            ) {
+                Text(
+                    text = if (isHindi) "अभी विश्लेषण करें" else "ANALYZE NOW",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -853,26 +957,50 @@ fun MonitoringScreen(
     if (showOffsetDialog) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showOffsetDialog = false },
-            title = { Text(text = if (isHindi) "काटने का समय?" else "When did the bite happen?", color = WhiteColor, fontWeight = FontWeight.Bold) },
+            title = {
+                Text(
+                    text = if (isHindi) "काटने का समय?" else "When did the bite happen?",
+                    color = WhiteColor, fontWeight = FontWeight.Bold
+                )
+            },
             text = {
                 Column {
-                    Text(text = if (isHindi) "ऐप खोलने से पहले कितने मिनट हुए थे?" else "Enter minutes before you opened the app:", color = GrayColor, fontSize = 13.sp)
+                    Text(
+                        text = if (isHindi) "ऐप खोलने से पहले कितने मिनट हुए थे?" else "Enter minutes before you opened the app:",
+                        color = GrayColor, fontSize = 13.sp
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                     androidx.compose.material3.OutlinedTextField(
                         value = offsetInput,
                         onValueChange = { offsetInput = it.filter { c -> c.isDigit() } },
                         label = { Text(if (isHindi) "मिनट पहले" else "Minutes ago", color = GrayColor) },
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedTextColor = WhiteColor, unfocusedTextColor = WhiteColor, focusedBorderColor = RedColor, unfocusedBorderColor = GrayColor)
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = WhiteColor,
+                            unfocusedTextColor = WhiteColor,
+                            focusedBorderColor = RedColor,
+                            unfocusedBorderColor = GrayColor
+                        )
                     )
                 }
             },
             confirmButton = {
-                Button(onClick = { secondsElapsed = (offsetInput.toIntOrNull() ?: 0) * 60; showOffsetDialog = false; offsetInput = "" }, colors = ButtonDefaults.buttonColors(containerColor = RedColor)) {
-                    Text(if (isHindi) "सेट करें" else "SET")
+                Button(
+                    onClick = {
+                        secondsElapsed = (offsetInput.toIntOrNull() ?: 0) * 60
+                        showOffsetDialog = false
+                        offsetInput = ""
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RedColor)
+                ) { Text(if (isHindi) "सेट करें" else "SET") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showOffsetDialog = false }) {
+                    Text(if (isHindi) "रद्द करें" else "Cancel", color = GrayColor)
                 }
             },
-            dismissButton = { TextButton(onClick = { showOffsetDialog = false }) { Text(if (isHindi) "रद्द करें" else "Cancel", color = GrayColor) } },
             containerColor = CardColor
         )
     }
@@ -880,12 +1008,29 @@ fun MonitoringScreen(
     if (showSosDialog) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showSosDialog = false; sosManager.stopStrobe() },
-            title = { Text(text = "🚨 ${if (isHindi) "आपातकाल सक्रिय" else "SOS TRIGGERED"}", color = RedColor, fontWeight = FontWeight.Bold) },
-            text = { Text(text = if (isHindi) "90 सेकंड की चुप्पी। अलार्म और टॉर्च चालू।" else "90 seconds of silence.\nAlarm and flashlight activated.", color = WhiteColor) },
+            title = {
+                Text(
+                    text = "🚨 ${if (isHindi) "आपातकाल सक्रिय" else "SOS TRIGGERED"}",
+                    color = RedColor, fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = if (isHindi) "90 सेकंड की चुप्पी। अलार्म और टॉर्च चालू।"
+                    else "90 seconds of silence.\nAlarm and flashlight activated.",
+                    color = WhiteColor
+                )
+            },
             confirmButton = {
-                Button(onClick = { showSosDialog = false; sosTriggered = false; silenceSeconds = 0; sosManager.stopStrobe() }, colors = ButtonDefaults.buttonColors(containerColor = RedColor)) {
-                    Text(if (isHindi) "मैं ठीक हूं" else "I'M OK — CANCEL SOS")
-                }
+                Button(
+                    onClick = {
+                        showSosDialog = false
+                        sosTriggered = false
+                        silenceSeconds = 0
+                        sosManager.stopStrobe()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RedColor)
+                ) { Text(if (isHindi) "मैं ठीक हूं" else "I'M OK — CANCEL SOS") }
             },
             containerColor = CardColor
         )
@@ -900,20 +1045,41 @@ fun MonitoringScreen(
         }
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { },
-            title = { Text(text = if (isHindi) "📷 सूजन की फोटो लें!" else "📷 Take Swelling Photo!", color = AmberColor, fontWeight = FontWeight.Bold, fontSize = 20.sp) },
+            title = {
+                Text(
+                    text = if (isHindi) "📷 सूजन की फोटो लें!" else "📷 Take Swelling Photo!",
+                    color = AmberColor, fontWeight = FontWeight.Bold, fontSize = 20.sp
+                )
+            },
             text = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = if (isHindi) "हर 15 मिनट में फोटो लेना ज़रूरी है।\nडॉक्टर को सूजन देखने में मदद मिलती है।\n\nअभी तक: $swellingPhotoCount फोटो" else "Photographing swelling every 15 minutes helps the doctor.\n\nPhotos so far: $swellingPhotoCount",
+                        text = if (isHindi)
+                            "हर 15 मिनट में फोटो लेना ज़रूरी है।\nडॉक्टर को सूजन देखने में मदद मिलती है।\n\nअभी तक: $swellingPhotoCount फोटो"
+                        else
+                            "Photographing swelling every 15 minutes helps the doctor.\n\nPhotos so far: $swellingPhotoCount",
                         color = WhiteColor, textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Box(contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(progress = countDown / 30f, color = AmberColor, modifier = Modifier.size(56.dp), strokeWidth = 4.dp)
-                        Text(text = "$countDown", color = WhiteColor, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        CircularProgressIndicator(
+                            progress = countDown / 30f,
+                            color = AmberColor,
+                            modifier = Modifier.size(56.dp),
+                            strokeWidth = 4.dp
+                        )
+                        Text(
+                            text = "$countDown",
+                            color = WhiteColor,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = if (isHindi) "सेकंड में बंद होगा" else "seconds then snooze 5min", color = GrayColor, fontSize = 11.sp)
+                    Text(
+                        text = if (isHindi) "सेकंड में बंद होगा" else "seconds then snooze 5min",
+                        color = GrayColor, fontSize = 11.sp
+                    )
                 }
             },
             confirmButton = {
@@ -921,11 +1087,21 @@ fun MonitoringScreen(
                     onClick = { showPhotoPrompt = false; showSwellingCamera = true; resetSilence() },
                     colors = ButtonDefaults.buttonColors(containerColor = AmberColor),
                     modifier = Modifier.fillMaxWidth().height(56.dp)
-                ) { Text(text = if (isHindi) "📷 अभी फोटो लें" else "📷 TAKE PHOTO NOW", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+                ) {
+                    Text(
+                        text = if (isHindi) "📷 अभी फोटो लें" else "📷 TAKE PHOTO NOW",
+                        fontSize = 16.sp, fontWeight = FontWeight.Bold
+                    )
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showPhotoPrompt = false; nextCheckSeconds = 300; resetSilence() }) {
-                    Text(text = if (isHindi) "5 मिनट बाद याद दिलाएं" else "Remind in 5 min", color = GrayColor, fontSize = 12.sp)
+                TextButton(
+                    onClick = { showPhotoPrompt = false; nextCheckSeconds = 300; resetSilence() }
+                ) {
+                    Text(
+                        text = if (isHindi) "5 मिनट बाद याद दिलाएं" else "Remind in 5 min",
+                        color = GrayColor, fontSize = 12.sp
+                    )
                 }
             },
             containerColor = CardColor
@@ -937,30 +1113,77 @@ fun MonitoringScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(32.dp))
-        Text(text = "⏱️ ${if (isHindi) "निगरानी" else "MONITORING"}", color = WhiteColor, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = "⏱️ ${if (isHindi) "निगरानी" else "MONITORING"}",
+            color = WhiteColor, fontSize = 24.sp, fontWeight = FontWeight.Bold
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
             Text(
-                text = if (isHindi) "काटने के बाद: ${secondsElapsed / 60}मि ${secondsElapsed % 60}से" else "Time since bite: ${secondsElapsed / 60}m ${secondsElapsed % 60}s",
+                text = if (isHindi)
+                    "काटने के बाद: ${secondsElapsed / 60}मि ${secondsElapsed % 60}से"
+                else
+                    "Time since bite: ${secondsElapsed / 60}m ${secondsElapsed % 60}s",
                 color = AmberColor, fontSize = 18.sp
             )
             Spacer(modifier = Modifier.width(8.dp))
-            TextButton(onClick = { showOffsetDialog = true }) { Text(text = "✏️ ${if (isHindi) "बदलें" else "Edit"}", color = GrayColor, fontSize = 12.sp) }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = CardColor), shape = RoundedCornerShape(12.dp)) {
-            Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = if (isHindi) "अगली जांच: ${nextCheckSeconds / 60}मि ${nextCheckSeconds % 60}से" else "Next check in: ${nextCheckSeconds / 60}m ${nextCheckSeconds % 60}s", color = GrayColor, fontSize = 14.sp)
-                Text(text = if (isHindi) "SOS में: ${(90 - silenceSeconds).coerceAtLeast(0)}से" else "Silence SOS in: ${(90 - silenceSeconds).coerceAtLeast(0)}s", color = if (silenceSeconds > 60) RedColor else GrayColor, fontSize = 12.sp)
+            TextButton(onClick = { showOffsetDialog = true }) {
+                Text(text = "✏️ ${if (isHindi) "बदलें" else "Edit"}", color = GrayColor, fontSize = 12.sp)
             }
         }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardColor),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = if (isHindi)
+                        "अगली जांच: ${nextCheckSeconds / 60}मि ${nextCheckSeconds % 60}से"
+                    else
+                        "Next check in: ${nextCheckSeconds / 60}m ${nextCheckSeconds % 60}s",
+                    color = GrayColor, fontSize = 14.sp
+                )
+                Text(
+                    text = if (isHindi)
+                        "SOS में: ${(90 - silenceSeconds).coerceAtLeast(0)}से"
+                    else
+                        "Silence SOS in: ${(90 - silenceSeconds).coerceAtLeast(0)}s",
+                    color = if (silenceSeconds > 60) RedColor else GrayColor,
+                    fontSize = 12.sp
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
-        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = CardColor), shape = RoundedCornerShape(12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardColor),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Column {
-                    Text(text = if (isHindi) "📷 सूजन की फोटो" else "📷 Swelling Photos", color = WhiteColor, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        text = if (swellingPhotoCount == 0) { if (isHindi) "अभी तक कोई फोटो नहीं" else "None taken yet" } else { if (isHindi) "$swellingPhotoCount फोटो • आखिरी: $lastPhotoTime" else "$swellingPhotoCount photos • Last: $lastPhotoTime" },
+                        text = if (isHindi) "📷 सूजन की फोटो" else "📷 Swelling Photos",
+                        color = WhiteColor, fontSize = 14.sp, fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (swellingPhotoCount == 0) {
+                            if (isHindi) "अभी तक कोई फोटो नहीं" else "None taken yet"
+                        } else {
+                            if (isHindi) "$swellingPhotoCount फोटो • आखिरी: $lastPhotoTime"
+                            else "$swellingPhotoCount photos • Last: $lastPhotoTime"
+                        },
                         color = GrayColor, fontSize = 12.sp
                     )
                 }
@@ -969,34 +1192,96 @@ fun MonitoringScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = AmberColor),
                     modifier = Modifier.height(40.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp)
-                ) { Text(text = if (isHindi) "📷 अभी लें" else "📷 Take", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-            }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = CardColor), shape = RoundedCornerShape(16.dp)) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(text = if (isHindi) "इन लक्षणों पर ध्यान दें:" else "Watch for:", color = WhiteColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(8.dp))
-                if (isHindi) {
-                    listOf("पलकें झुकना (ptosis)", "निगलने में कठिनाई", "सांस लेने में तकलीफ", "सूजन बढ़ना", "काटने की जगह से खून").forEach { Text(text = "• $it", color = GrayColor, fontSize = 14.sp) }
-                } else {
-                    listOf("Drooping eyelids (ptosis)", "Difficulty swallowing", "Breathing problems", "Increased swelling", "Bleeding from bite").forEach { Text(text = "• $it", color = GrayColor, fontSize = 14.sp) }
+                ) {
+                    Text(
+                        text = if (isHindi) "📷 अभी लें" else "📷 Take",
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
-        Spacer(modifier = Modifier.weight(1f))
-        Button(onClick = { resetSilence(); onNewSymptom() }, modifier = Modifier.fillMaxWidth().height(80.dp), colors = ButtonDefaults.buttonColors(containerColor = RedColor), shape = RoundedCornerShape(16.dp)) {
-            Text(text = if (isHindi) "🚨  नया लक्षण" else "🚨  NEW SYMPTOM", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        }
+
         Spacer(modifier = Modifier.height(12.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardColor),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = if (isHindi) "इन लक्षणों पर ध्यान दें:" else "Watch for:",
+                    color = WhiteColor, fontSize = 16.sp, fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                if (isHindi) {
+                    listOf(
+                        "पलकें झुकना (ptosis)",
+                        "निगलने में कठिनाई",
+                        "सांस लेने में तकलीफ",
+                        "सूजन बढ़ना",
+                        "काटने की जगह से खून"
+                    ).forEach { Text(text = "• $it", color = GrayColor, fontSize = 14.sp) }
+                } else {
+                    listOf(
+                        "Drooping eyelids (ptosis)",
+                        "Difficulty swallowing",
+                        "Breathing problems",
+                        "Increased swelling",
+                        "Bleeding from bite"
+                    ).forEach { Text(text = "• $it", color = GrayColor, fontSize = 14.sp) }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
         Button(
-            onClick = { resetSilence(); if (isHindi) voiceManager.speak("मरीज ठीक है। निगरानी जारी है।") else voiceManager.speak("Patient stable. Continuing to monitor.") },
+            onClick = {
+                resetSilence()
+                // Log new symptom report with timestamp
+                com.sarpamitra.monitoring.SymptomHistoryManager.logSymptoms(
+                    context = context,
+                    caseId = "SM-CURRENT",
+                    symptoms = listOf("New symptom reported"),
+                    transcript = "New symptom at ${secondsElapsed / 60} min post-bite",
+                    minutesSinceBite = secondsElapsed / 60
+                )
+                onNewSymptom()
+            },
+            modifier = Modifier.fillMaxWidth().height(80.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = RedColor),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Text(
+                text = if (isHindi) "🚨  नया लक्षण" else "🚨  NEW SYMPTOM",
+                fontSize = 20.sp, fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Button(
+            onClick = {
+                resetSilence()
+                if (isHindi) voiceManager.speak("मरीज ठीक है। निगरानी जारी है।")
+                else voiceManager.speak("Patient stable. Continuing to monitor.")
+            },
             modifier = Modifier.fillMaxWidth().height(56.dp),
             colors = ButtonDefaults.buttonColors(containerColor = GreenColor),
             shape = RoundedCornerShape(16.dp)
-        ) { Text(text = if (isHindi) "✅  मैं यहां हूं — मरीज ठीक है" else "✅  I'M HERE — PATIENT STABLE", fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+        ) {
+            Text(
+                text = if (isHindi) "✅  मैं यहां हूं — मरीज ठीक है" else "✅  I'M HERE — PATIENT STABLE",
+                fontSize = 14.sp, fontWeight = FontWeight.Bold
+            )
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
-        TextButton(onClick = { resetSilence(); onBack() }) { Text(text = if (isHindi) "वापस" else "Back", color = GrayColor) }
+
+        TextButton(onClick = { resetSilence(); onBack() }) {
+            Text(text = if (isHindi) "वापस" else "Back", color = GrayColor)
+        }
     }
 }
 
