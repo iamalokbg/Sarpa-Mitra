@@ -206,7 +206,7 @@ Android's offline Hindi speech recognition requires manual language pack downloa
 
 ## Installation
 
-1. Download APK from [Releases](https://github.com/iamalokbg/Sarpa-Mitra/releases)
+1. Download APK from [![Release](https://img.shields.io/github/v/release/iamalokbg/Sarpa-Mitra?label=Download%20APK)](https://github.com/iamalokbg/Sarpa-Mitra/releases/latest)
 2. Install on Android 11+ device with 4GB+ RAM
 3. Visit block office for USB model sideload
 4. App shows "Model missing" screen until model is loaded
@@ -220,4 +220,6 @@ Android's offline Hindi speech recognition requires manual language pack downloa
 - LiteRT Special Technology Prize
 
 ---
-
+## 📥 Download
+- **[Latest APK + Install Guide](https://github.com/iamalokbg/Sarpa-Mitra/releases/latest)**
+- Model file (`gemma-4-e2b-it.litertlm`, 2.58GB) provided separately for judges
