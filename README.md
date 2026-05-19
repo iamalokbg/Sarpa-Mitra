@@ -223,3 +223,6 @@ Android's offline Hindi speech recognition requires manual language pack downloa
 ## 📥 Download
 - **[Latest APK + Install Guide](https://github.com/iamalokbg/Sarpa-Mitra/releases/latest)**
 - Model file (`gemma-4-e2b-it.litertlm`, 2.58GB) provided separately for judges
+---
+**Judge Quickstart:** [JUDGE_SETUP.md](https://github.com/iamalokbg/Sarpa-Mitra/blob/main/JUDGE_SETUP.md)
+---
